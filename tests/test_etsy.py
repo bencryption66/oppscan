@@ -65,6 +65,19 @@ def test_gives_up_after_max_retries(con):
     assert len(calls) == 3
 
 
+def test_persistent_429_pauses_as_quota_exhausted(con):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(429, text="slow down")
+
+    client, _, _ = make_client(con, handler, max_retries=2)
+    with pytest.raises(QuotaExhausted, match="rate limit"):
+        client.get("/shops/1")
+    assert len(calls) == 3
+
+
 def test_non_retryable_status_raises_immediately(con):
     client, _, _ = make_client(con, lambda r: httpx.Response(404, text="nope"))
     with pytest.raises(EtsyError) as err:

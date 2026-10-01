@@ -15,7 +15,7 @@ RETRYABLE = {429, 500, 502, 503, 504}
 
 
 class QuotaExhausted(Exception):
-    """The rolling 24-hour call budget is used up."""
+    """The rolling 24-hour call budget is used up, or Etsy kept rate-limiting us."""
 
 
 class EtsyError(Exception):
@@ -90,6 +90,8 @@ class EtsyClient:
             if response.status_code in RETRYABLE and attempt < self._max_retries:
                 self._sleep(self._backoff(response, attempt))
                 continue
+            if response.status_code == 429:
+                raise QuotaExhausted("Etsy rate limit persisted after retries")
             raise EtsyError(endpoint, response.status_code, response.text)
         raise AssertionError("unreachable")
 

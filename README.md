@@ -10,8 +10,9 @@ uv sync
 ```
 
 - **Etsy:** create a developer app at etsy.com/developers and wait for approval. Set `ETSY_API_KEY`
-  to the value Etsy's docs say goes in the `x-api-key` header (check whether that's the keystring
-  alone or `keystring:shared_secret`). Confirm your app's rate limits and update `config/etsy.yaml`.
+  to `<keystring>:<shared_secret>` (both values from the Your Apps page, joined by a colon; Etsy's
+  v3 `x-api-key` header requires both). Check your app's rate limits in the Developer Portal and
+  update `qps` and `daily_quota` in `config/etsy.yaml` to match.
 - **Claude:** set `ANTHROPIC_API_KEY`, or sign in with `ant auth login`.
 
 ## Usage

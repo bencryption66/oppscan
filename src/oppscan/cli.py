@@ -17,7 +17,7 @@ def main(argv: list[str] | None = None) -> int:
     run = sub.add_parser("run", help="collect, score and write a report")
     run.add_argument("--fixtures", action="store_true",
                      help="use the fake Etsy API and fake LLM (no network, no keys)")
-    run.add_argument("--resume", metavar="RUN_ID", help="resume a paused run")
+    run.add_argument("--resume", metavar="RUN_ID", help="resume a paused, failed or interrupted run")
     run.add_argument("--config-dir", type=Path, default=Path("config"))
     run.add_argument("--data-dir", type=Path, default=Path("data"))
     run.add_argument("--reports-dir", type=Path, default=Path("reports"))

@@ -19,8 +19,15 @@ uv sync
 ```bash
 uv run oppscan run --fixtures     # offline run on fake data (no keys needed)
 uv run oppscan run                # live run -> reports/<run_id>.html and .md
-uv run oppscan run --resume <id>  # continue a run paused by the Etsy daily quota
+uv run oppscan run --resume <id>  # continue a paused, failed or interrupted run
 ```
+
+A paused run (Etsy daily quota or persistent rate limiting) exits with code 2 and prints the
+`--resume` command. `--resume` re-uses the responses already fetched, so it spends no quota on
+them. Resuming a complete or partial run, or an unknown id, prints `error: ...` and exits with 1.
+
+For the first live run, set `max_review_pages: 1` and use a smaller seed list to stay inside the
+daily quota.
 
 Edit `config/seeds.yaml` to change what's searched (this re-clusters niches on the next run) and
 `config/scoring.yaml` to change weights or thresholds.
@@ -40,5 +47,6 @@ and `tests/test_staging.py` to match.
 
 ## Status values
 
-`complete` · `partial` (report written; reasons listed in its header) · `paused` (quota reached;
-resume) · `failed`.
+`complete` · `partial` (report written; reasons listed in its header) · `paused` (quota or rate
+limit reached; resume) · `failed` (resume after fixing the cause). A run left `running` was
+interrupted and can also be resumed.

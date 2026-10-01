@@ -1,0 +1,78 @@
+import json
+from datetime import datetime
+
+from oppscan.staging import price_usd, review_hash, stage_run
+
+
+def raw(con, run_id, endpoint, params, payload):
+    con.execute("INSERT INTO raw_api VALUES (?, ?, ?, ?, ?)",
+                [run_id, endpoint, json.dumps(params, sort_keys=True), datetime(2026, 10, 1), json.dumps(payload)])
+
+
+def listing(lid, **over):
+    base = {"listing_id": lid, "title": f"T{lid}", "tags": ["a"],
+            "price": {"amount": 1299, "divisor": 100, "currency_code": "USD"},
+            "num_favorers": 5, "views": 50, "original_creation_timestamp": 1700000000,
+            "shop_id": 9, "listing_type": "download", "url": f"u{lid}"}
+    base.update(over)
+    return base
+
+
+def search(con, run_id, seed, offset, results, count=999):
+    raw(con, run_id, "/listings/active",
+        {"keywords": seed, "limit": 100, "offset": offset, "sort_on": "score"},
+        {"count": count, "results": results})
+
+
+def test_price_usd():
+    assert price_usd({"amount": 1299, "divisor": 100, "currency_code": "USD"}) == 12.99
+    assert price_usd({"amount": 1299, "divisor": 100, "currency_code": "EUR"}) is None
+    assert price_usd(None) is None
+
+
+def test_stages_search_results_filtering_type_and_currency(con):
+    search(con, "r1", "budget", 0, [
+        listing(1),
+        listing(2, listing_type="physical"),
+        listing(3, price={"amount": 500, "divisor": 100, "currency_code": "EUR"}),
+    ])
+    search(con, "r1", "budget", 100, [listing(4)])
+    stage_run(con, "r1")
+    hits = con.execute("SELECT seed, listing_id, search_rank FROM search_hits ORDER BY listing_id").fetchall()
+    assert hits == [("budget", 1, 1), ("budget", 4, 101)]
+    assert con.execute("SELECT total_count FROM seed_counts").fetchall() == [(999,)]
+    row = con.execute("SELECT price_usd, created_at, shop_id FROM listing_snapshots WHERE listing_id = 1").fetchone()
+    assert row == (12.99, datetime(2023, 11, 14, 22, 13, 20), 9)
+
+
+def test_same_listing_in_two_seeds(con):
+    search(con, "r1", "a", 0, [listing(1)])
+    search(con, "r1", "b", 0, [listing(9), listing(1)])
+    stage_run(con, "r1")
+    assert con.execute("SELECT seed, search_rank FROM search_hits WHERE listing_id = 1 ORDER BY seed").fetchall() == [("a", 1), ("b", 2)]
+    assert con.execute("SELECT count(*) FROM listing_snapshots").fetchone()[0] == 2
+
+
+def test_stages_shop(con):
+    raw(con, "r1", "/shops/9", {}, {"shop_id": 9, "shop_name": "S", "transaction_sold_count": 100,
+                                     "review_count": 10, "review_average": 4.8, "create_date": 1600000000})
+    stage_run(con, "r1")
+    assert con.execute("SELECT shop_name, transaction_sold_count, review_average FROM shop_snapshots").fetchone() == ("S", 100, 4.8)
+
+
+def test_reviews_dedupe_across_runs(con):
+    review = {"rating": 2, "review": "Confusing", "create_timestamp": 1750000000}
+    raw(con, "r1", "/listings/1/reviews", {"limit": 100, "offset": 0}, {"count": 1, "results": [review]})
+    raw(con, "r2", "/listings/1/reviews", {"limit": 100, "offset": 0}, {"count": 1, "results": [review]})
+    stage_run(con, "r1")
+    stage_run(con, "r2")
+    rows = con.execute("SELECT review_hash, listing_id, rating, text, first_seen_run FROM reviews").fetchall()
+    assert rows == [(review_hash(1, 1750000000, "Confusing"), 1, 2, "Confusing", "r1")]
+
+
+def test_restaging_is_idempotent(con):
+    search(con, "r1", "budget", 0, [listing(1)])
+    stage_run(con, "r1")
+    stage_run(con, "r1")
+    assert con.execute("SELECT count(*) FROM search_hits").fetchone()[0] == 1
+    assert con.execute("SELECT count(*) FROM listing_snapshots").fetchone()[0] == 1

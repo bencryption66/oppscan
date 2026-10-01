@@ -91,3 +91,34 @@ def test_paces_calls(con):
     client.get("/shops/1")
     client.get("/shops/2")
     assert sleeps == [0.25]
+
+
+def test_retries_transport_error_then_succeeds(con):
+    responses = iter([
+        httpx.ConnectError("boom"),
+        httpx.Response(200, json={"ok": True})
+    ])
+
+    def handler(request):
+        resp = next(responses)
+        if isinstance(resp, Exception):
+            raise resp
+        return resp
+
+    client, _, sleeps = make_client(con, handler)
+    assert client.get("/shops/1") == {"ok": True}
+    assert 1.0 in sleeps
+
+
+def test_transport_error_exhausts_retries(con):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        raise httpx.ReadTimeout("slow")
+
+    client, _, _ = make_client(con, handler, max_retries=2)
+    with pytest.raises(EtsyError) as err:
+        client.get("/shops/1")
+    assert err.value.status == 0
+    assert len(calls) == 3

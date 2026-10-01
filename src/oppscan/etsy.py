@@ -78,7 +78,13 @@ class EtsyClient:
     def _fetch(self, endpoint: str, params: dict) -> dict:
         for attempt in range(self._max_retries + 1):
             self._pace()
-            response = self._http.get(endpoint, params=params)
+            try:
+                response = self._http.get(endpoint, params=params)
+            except httpx.TransportError as exc:
+                if attempt < self._max_retries:
+                    self._sleep(min(60.0, 2.0 ** attempt))
+                    continue
+                raise EtsyError(endpoint, 0, str(exc))
             if response.status_code == 200:
                 return response.json()
             if response.status_code in RETRYABLE and attempt < self._max_retries:

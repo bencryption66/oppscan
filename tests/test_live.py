@@ -25,12 +25,17 @@ def test_etsy_response_shapes(con):
     assert {"amount", "divisor", "currency_code"} <= set(listing["price"])
     assert any(k in listing for k in ("original_creation_timestamp", "created_timestamp", "creation_timestamp"))
 
-    reviews = client.get(f"/listings/{listing['listing_id']}/reviews", {"limit": 5, "offset": 0})
-    assert "results" in reviews
+    for candidate in page["results"]:  # find a listing with enough reviews to check ordering
+        reviews = client.get(f"/listings/{candidate['listing_id']}/reviews", {"limit": 5, "offset": 0})
+        assert "results" in reviews
+        if len(reviews["results"]) >= 2:
+            break
     for review in reviews["results"]:
         assert "rating" in review
         assert "create_timestamp" in review or "created_timestamp" in review
     stamps = [r.get("create_timestamp") or r.get("created_timestamp") for r in reviews["results"]]
+    stamps = [s for s in stamps if s is not None]
+    assert len(stamps) >= 2, "no listing in the first search page had 2+ timestamped reviews to check ordering"
     assert stamps == sorted(stamps, reverse=True), (
         "reviews are not newest-first; collector._reviews stops paging on the assumption that they are")
 

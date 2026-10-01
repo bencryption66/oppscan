@@ -93,6 +93,7 @@ def compute_metrics(con, run_id: str, as_of: datetime, cfg: ScoringConfig,
         fav_delta = None
         if prev_run_id:
             fav_delta = sum(max(0, snap[lid][1] - prev_favs[lid]) for lid in lids if lid in prev_favs)
+        prices = [snap[lid][0] for lid in lids if snap[lid][0] is not None]
         out.append(NicheMetrics(
             niche_id=niche_id,
             reviews_90d=total,
@@ -100,7 +101,7 @@ def compute_metrics(con, run_id: str, as_of: datetime, cfg: ScoringConfig,
             fav_delta=fav_delta,
             entry_share=new_reviews / total if total else 0.0,
             gap_per_100=gap,
-            median_price=median(snap[lid][0] for lid in lids),
+            median_price=median(prices) if prices else None,
             listing_count=int(listing_counts.get(niche_id) or 0),
             top3_share=sum(sorted(by_shop.values(), reverse=True)[:3]) / total if total else 0.0,
         ))

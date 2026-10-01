@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from oppscan.config import load_etsy, load_scoring, load_seeds
+from oppscan.config import load_etsy, load_fx, load_scoring, load_seeds
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -74,3 +74,31 @@ def test_load_etsy_reads_env_key(monkeypatch):
 def test_load_etsy_explicit_key_wins(monkeypatch):
     monkeypatch.setenv("ETSY_API_KEY", "env")
     assert load_etsy(REPO / "config" / "etsy.yaml", api_key="explicit").api_key == "explicit"
+
+
+def test_repo_fx_config_loads():
+    fx = load_fx(REPO / "config" / "fx.yaml")
+    assert fx["USD"] == 1.0
+    assert fx["EUR"] == pytest.approx(0.88511)
+    assert all(isinstance(v, float) and v > 0 for v in fx.values())
+
+
+def test_load_fx_uppercases_codes(tmp_path):
+    path = tmp_path / "fx.yaml"
+    path.write_text("per_usd:\n  usd: 1\n  eur: 0.9\n")
+    assert load_fx(path) == {"USD": 1.0, "EUR": 0.9}
+
+
+def test_load_fx_requires_usd(tmp_path):
+    path = tmp_path / "fx.yaml"
+    path.write_text("per_usd:\n  EUR: 0.9\n")
+    with pytest.raises(ValueError, match="USD"):
+        load_fx(path)
+
+
+@pytest.mark.parametrize("rate", ["0", "-1.5"])
+def test_load_fx_rejects_non_positive_rate(tmp_path, rate):
+    path = tmp_path / "fx.yaml"
+    path.write_text(f"per_usd:\n  USD: 1.0\n  EUR: {rate}\n")
+    with pytest.raises(ValueError, match="EUR"):
+        load_fx(path)

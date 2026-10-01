@@ -21,13 +21,18 @@ def review_hash(listing_id: int, created_ts: int, text: str) -> str:
     return hashlib.sha256(f"{listing_id}|{created_ts}|{text}".encode()).hexdigest()[:16]
 
 
-def price_usd(price: dict | None) -> float | None:
-    if not price or price.get("currency_code") != "USD":
+def price_usd(price: dict | None, per_usd: dict[str, float]) -> float | None:
+    """Convert an Etsy price to USD; None if it is missing or its currency has no rate."""
+    if not price:
         return None
-    return price["amount"] / price["divisor"]
+    rate = per_usd.get(price.get("currency_code"))
+    amount, divisor = price.get("amount"), price.get("divisor")
+    if rate is None or amount is None or not divisor:
+        return None
+    return round(amount / divisor / rate, 2)
 
 
-def stage_run(con, run_id: str) -> None:
+def stage_run(con, run_id: str, per_usd: dict[str, float]) -> None:
     for table in STAGED_TABLES:
         con.execute(f"DELETE FROM {table} WHERE run_id = ?", [run_id])
 
@@ -46,9 +51,9 @@ def stage_run(con, run_id: str) -> None:
             if offset == 0:
                 counts[seed] = int(payload.get("count", 0))
             for i, item in enumerate(payload.get("results", [])):
-                usd = price_usd(item.get("price"))
-                if item.get("listing_type") != "download" or usd is None:
+                if item.get("listing_type") != "download":
                     continue
+                usd = price_usd(item.get("price"), per_usd)
                 lid = int(item["listing_id"])
                 rank = offset + i + 1
                 hits[(seed, lid)] = min(rank, hits.get((seed, lid), rank))

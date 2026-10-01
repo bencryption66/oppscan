@@ -46,7 +46,7 @@ def _listing_attrs(listing_id: int) -> dict:
     rng = _rng("listing", listing_id)
     return {
         "listing_type": rng.choices(["download", "physical", "both"], [85, 10, 5])[0],
-        "currency": rng.choices(["USD", "EUR"], [90, 10])[0],
+        "currency": rng.choices(["USD", "EUR", "GBP", "CAD", "XXX"], [70, 10, 8, 7, 5])[0],
         "amount": rng.randint(299, 2999),
         "created": ANCHOR - timedelta(days=rng.randint(1, 1200)),
         "popularity": rng.paretovariate(1.5),

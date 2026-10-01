@@ -56,13 +56,17 @@ def score_niches(metrics: list[NicheMetrics], cfg: ScoringConfig) -> list[NicheS
     if all(m.fav_delta is not None for m in metrics):
         demand = _mean(demand, percentile_ranks([m.fav_delta for m in metrics]))
     entry = percentile_ranks([m.entry_share for m in metrics])
-    price = percentile_ranks([m.median_price or 0.0 for m in metrics])
     crowding = _mean(percentile_ranks([m.listing_count for m in metrics]),
                      percentile_ranks([m.top3_share for m in metrics]))
     gap = [0.5] * len(metrics)
     known = [i for i, m in enumerate(metrics) if m.gap_per_100 is not None]
     for i, p in zip(known, percentile_ranks([metrics[i].gap_per_100 for i in known])):
         gap[i] = p
+
+    price = [0.5] * len(metrics)
+    priced = [i for i, m in enumerate(metrics) if m.median_price is not None]
+    for i, p in zip(priced, percentile_ranks([metrics[i].median_price for i in priced])):
+        price[i] = p
 
     scores = []
     for i, m in enumerate(metrics):

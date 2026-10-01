@@ -159,6 +159,9 @@ def test_missing_llm_credentials_fail_before_etsy_calls(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="No Anthropic credentials"):
         run_pipeline(paths, transport=counting_transport(T1, calls), api_key="fixture", now=T1, qps=1e6)
     assert calls == []
+    con = duckdb.connect(str(paths.db), read_only=True)
+    assert con.execute("SELECT count(*) FROM runs").fetchone()[0] == 0  # no empty failed run left behind
+    con.close()
 
 
 def test_resume_rejects_unknown_run(tmp_path):

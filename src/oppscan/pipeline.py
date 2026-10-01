@@ -55,6 +55,8 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps, daily_quota) -> 
     seeds = load_seeds(paths.config_dir / "seeds.yaml")
     cfg = load_scoring(paths.config_dir / "scoring.yaml")
     etsy = load_etsy(paths.config_dir / "etsy.yaml", api_key=api_key)
+    # Fail on missing credentials before creating a run row or spending Etsy quota.
+    llm = llm or AnthropicLLM(con)
 
     if resume:
         existing = db.get_run(con, resume)
@@ -70,7 +72,6 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps, daily_quota) -> 
         run_id = db.start_run(con, seeds.file_hash, as_of)
 
     try:
-        llm = llm or AnthropicLLM(con)  # fail on missing credentials before spending Etsy quota
         client = EtsyClient(con, run_id, api_key=etsy.api_key, qps=qps or etsy.qps,
                             daily_quota=daily_quota or etsy.daily_quota, transport=transport)
         try:

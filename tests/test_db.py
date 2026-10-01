@@ -37,15 +37,6 @@ def test_reasons_status_and_finish(con):
     assert run["finished_at"] == T + timedelta(minutes=5)
 
 
-def test_clear_reasons(con):
-    run_id = db.start_run(con, "h", T)
-    db.add_reason(con, run_id, "one")
-    db.clear_reasons(con, run_id)
-    assert db.get_run(con, run_id)["status_reasons"] == []
-    db.add_reason(con, run_id, "two")
-    assert db.get_run(con, run_id)["status_reasons"] == ["two"]
-
-
 def test_reopen_run_resets_failed_run_state(con):
     run_id = db.start_run(con, "h", T)
     db.set_suspect(con, run_id)

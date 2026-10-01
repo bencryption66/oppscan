@@ -52,12 +52,12 @@ def normalise(term: str) -> str:
 
 
 def load_seeds(path: Path) -> Seeds:
-    raw = Path(path).read_bytes()
-    data = yaml.safe_load(raw) or {}
+    data = yaml.safe_load(Path(path).read_text()) or {}
     terms = tuple(dict.fromkeys(t for t in (normalise(s) for s in data.get("seeds", [])) if t))
     if not terms:
         raise ValueError(f"{path}: no seeds defined")
-    return Seeds(terms=terms, file_hash=hashlib.sha256(raw).hexdigest()[:16])
+    # Hash the normalised terms, so comment or whitespace edits don't trigger re-clustering.
+    return Seeds(terms=terms, file_hash=hashlib.sha256("\n".join(terms).encode()).hexdigest()[:16])
 
 
 def load_scoring(path: Path) -> ScoringConfig:

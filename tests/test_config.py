@@ -23,6 +23,15 @@ def test_load_seeds_hash_changes_with_content(tmp_path):
     assert load_seeds(path).file_hash != first
 
 
+def test_load_seeds_hash_ignores_comments_and_whitespace(tmp_path):
+    path = tmp_path / "seeds.yaml"
+    path.write_text("seeds:\n  - budget spreadsheet\n  - notion planner\n")
+    first = load_seeds(path).file_hash
+    path.write_text("# my seeds\nseeds:\n  - Budget  Spreadsheet   # big one\n\n  - notion planner\n"
+                    "  - budget spreadsheet\n")
+    assert load_seeds(path).file_hash == first
+
+
 def test_load_seeds_rejects_empty(tmp_path):
     path = tmp_path / "seeds.yaml"
     path.write_text("seeds: []\n")

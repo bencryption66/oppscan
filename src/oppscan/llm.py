@@ -37,6 +37,13 @@ def validate(task: str, data: dict) -> dict:
     return data
 
 
+def _transient(e: Exception) -> bool:
+    """Connection/timeout, rate-limit and 5xx (incl. 529 overloaded) errors are worth degrading on."""
+    if isinstance(e, (anthropic.APIConnectionError, anthropic.RateLimitError)):
+        return True
+    return isinstance(e, anthropic.APIStatusError) and e.status_code >= 500
+
+
 class AnthropicLLM:
     def __init__(self, con, client=None):
         if client is None:
@@ -78,6 +85,8 @@ class AnthropicLLM:
                 fallbacks="default",
             )
         except anthropic.APIError as e:
+            if not _transient(e):
+                raise  # auth, permission, bad model id, bad request: fail the run so it can be resumed
             raise LLMOutputError(f"api: {e}") from e
         if response.stop_reason in ("refusal", "max_tokens"):
             raise LLMOutputError(f"stop_reason={response.stop_reason}")

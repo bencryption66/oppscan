@@ -95,6 +95,28 @@ def test_anthropic_api_error_becomes_output_error(con):
         AnthropicLLM(con, client=client).call("cluster", PAYLOAD)
 
 
+def status_error(cls, code):
+    response = httpx.Response(code, request=httpx.Request("POST", "https://x"))
+    return cls("err", response=response, body=None)
+
+
+@pytest.mark.parametrize("cls,code", [(anthropic.RateLimitError, 429), (anthropic.InternalServerError, 500),
+                                      (anthropic.OverloadedError, 529)])
+def test_transient_status_errors_degrade(con, cls, code):
+    client = FakeAnthropic(status_error(cls, code), status_error(cls, code))
+    with pytest.raises(LLMOutputError, match="api:"):
+        AnthropicLLM(con, client=client).call("cluster", PAYLOAD)
+
+
+@pytest.mark.parametrize("cls,code", [(anthropic.AuthenticationError, 401), (anthropic.NotFoundError, 404),
+                                      (anthropic.BadRequestError, 400)])
+def test_config_errors_propagate(con, cls, code):
+    client = FakeAnthropic(status_error(cls, code))
+    with pytest.raises(cls):
+        AnthropicLLM(con, client=client).call("cluster", PAYLOAD)
+    assert len(client.requests) == 1  # not retried
+
+
 def no_anthropic_env(monkeypatch, tmp_path):
     import os
     for name in list(os.environ):

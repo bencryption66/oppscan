@@ -137,6 +137,12 @@ def test_api_key_env_constructs(con, monkeypatch, tmp_path):
     AnthropicLLM(con)
 
 
+def test_custom_headers_auth_constructs(con, monkeypatch, tmp_path):
+    no_anthropic_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("ANTHROPIC_CUSTOM_HEADERS", "X-Api-Key: x")  # proxy / gateway auth
+    AnthropicLLM(con)
+
+
 def test_fake_llm_outputs_validate():
     fake = FakeLLM()
     clusters = fake.call("cluster", {"seeds": [{"seed": "budget a", "titles": []},

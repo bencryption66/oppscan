@@ -44,12 +44,20 @@ def _transient(e: Exception) -> bool:
     return isinstance(e, anthropic.APIStatusError) and e.status_code >= 500
 
 
+def _has_credentials(client) -> bool:
+    if client.api_key is not None or client.auth_token is not None or client.credentials is not None:
+        return True
+    # ANTHROPIC_CUSTOM_HEADERS auth, as used with proxies and gateways.
+    headers = {k.lower() for k in client._custom_headers}
+    return bool(headers & {"x-api-key", "authorization"})
+
+
 class AnthropicLLM:
     def __init__(self, con, client=None):
         if client is None:
             client = anthropic.Anthropic()
             # The SDK only complains about missing credentials on the first request.
-            if client.api_key is None and client.auth_token is None and client.credentials is None:
+            if not _has_credentials(client):
                 raise ValueError("No Anthropic credentials found: set ANTHROPIC_API_KEY or run `ant auth login`")
         self._con = con
         self._client = client

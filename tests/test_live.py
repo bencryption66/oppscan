@@ -30,6 +30,9 @@ def test_etsy_response_shapes(con):
     for review in reviews["results"]:
         assert "rating" in review
         assert "create_timestamp" in review or "created_timestamp" in review
+    stamps = [r.get("create_timestamp") or r.get("created_timestamp") for r in reviews["results"]]
+    assert stamps == sorted(stamps, reverse=True), (
+        "reviews are not newest-first; collector._reviews stops paging on the assumption that they are")
 
     shop = client.get(f"/shops/{listing['shop_id']}")
     assert "transaction_sold_count" in shop

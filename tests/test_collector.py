@@ -75,3 +75,26 @@ def test_fake_transport_is_deterministic_and_grows_with_time():
     later = first_listing(datetime(2026, 11, 1))
     assert later["results"][0]["listing_id"] == a["results"][0]["listing_id"]
     assert later["results"][0]["num_favorers"] >= a["results"][0]["num_favorers"]
+
+
+def test_collect_reviews_only_usd_download_listings(con):
+    def listing(lid, currency):
+        return {"listing_id": lid, "shop_id": lid, "listing_type": "download",
+                "price": {"amount": 500, "divisor": 100, "currency_code": currency}}
+
+    results = [listing(i, "EUR") for i in range(1, 5)] + [listing(i, "USD") for i in range(5, 10)]
+
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/listings/active"):
+            return httpx.Response(200, json={"count": len(results), "results": results})
+        if path.endswith("/reviews"):
+            return httpx.Response(200, json={"count": 0, "results": []})
+        return httpx.Response(200, json={"shop_id": int(path.rsplit("/", 1)[1])})
+
+    seeds = Seeds(terms=("budget spreadsheet",), file_hash="h")
+    collect(client_for(con, httpx.MockTransport(handler)), seeds, SETTINGS)
+    reviewed = {int(e.split("/")[2]) for e in endpoints(con) if e.endswith("/reviews")}
+    assert reviewed == {5, 6, 7}  # reviews_for_top=3, EUR listings skipped
+    shops = {int(e.split("/")[2]) for e in endpoints(con) if e.startswith("/shops/")}
+    assert shops == {5, 6, 7}

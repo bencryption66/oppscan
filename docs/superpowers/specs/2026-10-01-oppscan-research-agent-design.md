@@ -26,7 +26,7 @@ test.
 - Gumroad, Notion template gallery, other marketplaces (no compliant search API).
 - Scraping of any kind.
 - Agentic drill-down (approach C). The design leaves room for it as a later stage.
-- Scheduling, multi-currency (non-USD listings dropped).
+- Scheduling, live exchange rates (prices convert with a static table, `config/fx.yaml`).
 - Paid data tools (eRank, EverBee).
 
 ## Approach
@@ -88,7 +88,7 @@ later runs can compute real deltas between runs.
 | `niche_scores` | run × niche | component metrics, percentiles, score, rank, confidence, dropped flag + reason |
 | `briefs` | run × niche | generated brief text (top 10) |
 
-**Prices:** USD = `price.amount / price.divisor`. Non-USD listings are dropped in v1.
+**Prices:** `price.amount / price.divisor`, converted to USD with the static rates in `config/fx.yaml` (units per 1 USD, rounded to 2 decimals). Every `download` listing is kept whatever its currency; a currency missing from the table gives `price_usd = NULL`, and the median price skips NULLs.
 **Retention:** raw JSON is kept for the last 8 runs; older raw JSON is compressed.
 
 ## Scoring

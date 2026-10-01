@@ -66,3 +66,8 @@ def test_save_scores_round_trip(con):
     save_scores(con, "r1", scores)
     rows = con.execute("SELECT niche_id, rank, dropped FROM niche_scores ORDER BY niche_id").fetchall()
     assert rows == [("a", None, True), ("b", 1, False)]
+
+
+def test_unknown_median_price_gets_neutral_percentile():
+    scores = score_niches([m("a", price=5.0), m("b", price=None), m("c", price=20.0)], make_cfg())
+    assert [s.pct_price for s in scores] == [0.0, 0.5, 1.0]

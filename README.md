@@ -31,7 +31,9 @@ For the first live run, set `max_review_pages: 1` and use a smaller seed list to
 daily quota.
 
 Edit `config/seeds.yaml` to change what's searched (this re-clusters niches on the next run) and
-`config/scoring.yaml` to change weights or thresholds.
+`config/scoring.yaml` to change weights or thresholds. `config/fx.yaml` holds the static exchange
+rates (units per 1 USD) used to convert non-USD listing prices; update it by hand now and then. A
+listing in a currency missing from the table is kept with an unknown price.
 
 ## Live checks
 

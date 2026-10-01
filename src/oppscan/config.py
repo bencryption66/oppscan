@@ -89,3 +89,15 @@ def load_etsy(path: Path, api_key: str | None = None) -> EtsySettings:
         reviews_for_top=int(d["reviews_for_top"]),
         max_review_pages=int(d["max_review_pages"]),
     )
+
+
+def load_fx(path: Path) -> dict[str, float]:
+    """Units of each currency per 1 USD, keyed by uppercase currency code."""
+    d = yaml.safe_load(Path(path).read_text()) or {}
+    rates = {str(code).upper(): float(rate) for code, rate in (d.get("per_usd") or {}).items()}
+    if "USD" not in rates:
+        raise ValueError(f"{path}: per_usd must include USD")
+    for code, rate in rates.items():
+        if rate <= 0:
+            raise ValueError(f"{path}: rate for {code} must be positive, got {rate}")
+    return rates

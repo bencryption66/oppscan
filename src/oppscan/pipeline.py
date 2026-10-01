@@ -12,7 +12,7 @@ from oppscan.briefs import write_briefs, write_summary
 from oppscan.clustering import cluster
 from oppscan.collector import collect
 from oppscan.complaints import mine_complaints
-from oppscan.config import load_etsy, load_scoring, load_seeds
+from oppscan.config import load_etsy, load_fx, load_scoring, load_seeds
 from oppscan.etsy import EtsyClient, QuotaExhausted
 from oppscan.llm import AnthropicLLM, LLMClient
 from oppscan.metrics import compute_metrics
@@ -55,6 +55,7 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps, daily_quota) -> 
     seeds = load_seeds(paths.config_dir / "seeds.yaml")
     cfg = load_scoring(paths.config_dir / "scoring.yaml")
     etsy = load_etsy(paths.config_dir / "etsy.yaml", api_key=api_key)
+    fx = load_fx(paths.config_dir / "fx.yaml")
     # Fail on missing credentials before creating a run row or spending Etsy quota.
     llm = llm or AnthropicLLM(con)
 
@@ -88,7 +89,7 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps, daily_quota) -> 
         if stats.errors:
             reasons.append(f"{len(stats.errors)} Etsy request(s) failed; first: {stats.errors[0]}")
             db.add_reason(con, run_id, reasons[-1])
-        stage_run(con, run_id)
+        stage_run(con, run_id, fx)
         cluster(con, run_id, seeds, llm)
         complaint_reasons = mine_complaints(con, run_id, llm, cfg.top_n_per_niche)
         for r in complaint_reasons:

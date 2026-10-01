@@ -75,3 +75,12 @@ def test_briefs_summary_and_render(con, tmp_path):
     assert "Draft brief" in html and "Confusing setup" in html
     assert "Fixture run with 2 ranked niches." in html
     assert "| 1 |" in md
+
+
+def test_competitor_with_unknown_price_renders_dash(con, tmp_path):
+    build(con)
+    con.execute("UPDATE listing_snapshots SET price_usd = NULL WHERE listing_id = 1")
+    assert write_briefs(con, "r1", FakeLLM(), CFG, AS_OF) == []
+    html_path, md_path = render_report(con, "r1", CFG, tmp_path)
+    assert " · – · 3 reviews in 90 days" in html_path.read_text()
+    assert " · – · 3 reviews in 90 days" in md_path.read_text()

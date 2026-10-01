@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 
 from oppscan.config import EtsySettings, Seeds
 from oppscan.etsy import EtsyClient, EtsyError
-from oppscan.staging import price_usd
 
 PAGE = 100
 
@@ -27,8 +26,7 @@ def collect(client: EtsyClient, seeds: Seeds, settings: EtsySettings) -> Collect
             continue
         stats.seeds += 1
         # Same filter as staging, so the listings reviewed are the ones scored.
-        scorable = [l for l in listings
-                    if l.get("listing_type") == "download" and price_usd(l.get("price")) is not None]
+        scorable = [l for l in listings if l.get("listing_type") == "download"]
         stats.listings_seen += len(scorable)
         top = scorable[: settings.reviews_for_top]
         for shop_id in dict.fromkeys(l["shop_id"] for l in top):

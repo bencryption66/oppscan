@@ -60,7 +60,7 @@ ul { margin:4px 0 8px; padding-left:20px; }
 {% if c.complaints %}<strong>Fixable complaints</strong>
 <ul>{% for k in c.complaints %}<li>{{ k.theme }} ({{ k.mentions }} reviews){% for q in k.quotes %} — “{{ q }}”{% endfor %}</li>{% endfor %}</ul>{% endif %}
 {% if c.competitors %}<strong>Strongest competitors</strong>
-<ul>{% for k in c.competitors %}<li><a href="{{ k.url }}">{{ k.title }}</a> · ${{ "%.2f"|format(k.price_usd) }} · {{ k.reviews_90d }} reviews in 90 days</li>{% endfor %}</ul>{% endif %}
+<ul>{% for k in c.competitors %}<li><a href="{{ k.url }}">{{ k.title }}</a> · {{ "$" ~ "%.2f"|format(k.price_usd) if k.price_usd is not none else "–" }} · {{ k.reviews_90d }} reviews in 90 days</li>{% endfor %}</ul>{% endif %}
 {% if c.brief %}<strong>Draft brief</strong>
 <ul>
 <li>Buyer: {{ c.brief.target_buyer }}</li>

@@ -33,6 +33,7 @@ def setup_config(tmp_path, quota=100_000):
     config = tmp_path / "config"
     config.mkdir(exist_ok=True)
     shutil.copy(REPO / "config" / "scoring.yaml", config / "scoring.yaml")
+    shutil.copy(REPO / "config" / "fx.yaml", config / "fx.yaml")
     (config / "seeds.yaml").write_text(SEEDS)
     (config / "etsy.yaml").write_text(
         f"qps: 5\ndaily_quota: {quota}\nsearch_depth: 200\nreviews_for_top: 5\nmax_review_pages: 2\n")

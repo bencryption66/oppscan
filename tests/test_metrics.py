@@ -68,3 +68,17 @@ def test_fav_delta_against_previous_run(con):
     add_listing(con, "r0", 2, seed="s1", rank=2, favs=30)
     [m] = compute_metrics(con, "r1", AS_OF, CFG, "r0")
     assert m.fav_delta == 5  # +5 on listing 1, the -5 on listing 2 is floored at 0
+
+
+def test_median_price_ignores_null_prices(con):
+    build(con)
+    con.execute("UPDATE listing_snapshots SET price_usd = NULL WHERE listing_id IN (1, 4)")
+    [m] = compute_metrics(con, "r1", AS_OF, CFG, None)
+    assert m.median_price == 25.0  # median of 20 and 30
+
+
+def test_median_price_none_when_all_prices_null(con):
+    build(con)
+    con.execute("UPDATE listing_snapshots SET price_usd = NULL")
+    [m] = compute_metrics(con, "r1", AS_OF, CFG, None)
+    assert m.median_price is None

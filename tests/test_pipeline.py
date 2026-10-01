@@ -4,6 +4,7 @@ from pathlib import Path
 
 import duckdb
 import httpx
+import pytest
 
 from oppscan.cli import main
 from oppscan.fake_etsy import fake_transport
@@ -81,6 +82,24 @@ def test_quota_pause_then_resume(tmp_path):
     assert resumed.run_id == paused.run_id
     assert resumed.status == "complete", resumed.reasons
     assert not set(first_calls) & set(calls[len(first_calls):])  # nothing re-fetched
+    con = duckdb.connect(str(paths.db), read_only=True)
+    stored = con.execute("SELECT status_reasons FROM runs WHERE run_id = ?", [resumed.run_id]).fetchone()[0]
+    con.close()
+    assert not any("--resume" in r for r in (stored or []))
+
+
+def test_resume_rejects_completed_run(tmp_path):
+    paths = setup_config(tmp_path)
+    first = run(paths, T1)
+    assert first.status == "complete", first.reasons
+    with pytest.raises(ValueError, match=f"{first.run_id}.*complete"):
+        run(paths, T1, resume=first.run_id)
+
+
+def test_resume_rejects_unknown_run(tmp_path):
+    paths = setup_config(tmp_path)
+    with pytest.raises(ValueError, match="nope"):
+        run(paths, T1, resume="nope")
 
 
 def test_cli_fixtures(tmp_path, capsys):

@@ -125,6 +125,10 @@ def add_reason(con, run_id: str, reason: str) -> None:
                 [reason, run_id])
 
 
+def clear_reasons(con, run_id: str) -> None:
+    con.execute("UPDATE runs SET status_reasons = []::VARCHAR[] WHERE run_id = ?", [run_id])
+
+
 def set_status(con, run_id: str, status: str) -> None:
     con.execute("UPDATE runs SET status = ? WHERE run_id = ?", [status, run_id])
 

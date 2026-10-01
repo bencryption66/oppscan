@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from oppscan import db
@@ -32,7 +33,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.fixtures:
         extra = {"transport": fake_transport(db.utcnow()), "llm": FakeLLM(),
                  "api_key": "fixture", "qps": 1e6}
-    result = run_pipeline(paths, resume=args.resume, **extra)
+    try:
+        result = run_pipeline(paths, resume=args.resume, **extra)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
 
     print(f"run {result.run_id}: {result.status}")
     for reason in result.reasons:

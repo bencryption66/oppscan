@@ -37,6 +37,15 @@ def test_reasons_status_and_finish(con):
     assert run["finished_at"] == T + timedelta(minutes=5)
 
 
+def test_clear_reasons(con):
+    run_id = db.start_run(con, "h", T)
+    db.add_reason(con, run_id, "one")
+    db.clear_reasons(con, run_id)
+    assert db.get_run(con, run_id)["status_reasons"] == []
+    db.add_reason(con, run_id, "two")
+    assert db.get_run(con, run_id)["status_reasons"] == ["two"]
+
+
 def test_previous_run_skips_unfinished_and_failed(con):
     first = db.start_run(con, "h", T)
     db.finish_run(con, first, "complete", T)

@@ -58,8 +58,11 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
         existing = db.get_run(con, resume)
         if existing is None:
             raise ValueError(f"unknown run {resume}")
+        if existing["status"] != "paused":
+            raise ValueError(f"run {resume} is {existing['status']}, only a paused run can be resumed")
         run_id, as_of = resume, existing["started_at"]
         db.set_status(con, run_id, "running")
+        db.clear_reasons(con, run_id)
     else:
         as_of = now or db.utcnow()
         run_id = db.start_run(con, seeds.file_hash, as_of)
@@ -81,9 +84,13 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
         reasons: list[str] = []
         if stats.errors:
             reasons.append(f"{len(stats.errors)} Etsy request(s) failed; first: {stats.errors[0]}")
+            db.add_reason(con, run_id, reasons[-1])
         stage_run(con, run_id)
         cluster(con, run_id, seeds, llm)
-        reasons += mine_complaints(con, run_id, llm, cfg.top_n_per_niche)
+        complaint_reasons = mine_complaints(con, run_id, llm, cfg.top_n_per_niche)
+        for r in complaint_reasons:
+            db.add_reason(con, run_id, r)
+        reasons += complaint_reasons
         scores = score_niches(compute_metrics(con, run_id, as_of, cfg, db.previous_run(con, run_id)), cfg)
         save_scores(con, run_id, scores)
 
@@ -95,10 +102,13 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
             for p in problems:
                 db.add_reason(con, run_id, f"sanity: {p}")
 
-        reasons += write_briefs(con, run_id, llm, cfg, as_of)
-        reasons += write_summary(con, run_id, llm, cfg)
-        for r in reasons:
+        brief_reasons = write_briefs(con, run_id, llm, cfg, as_of)
+        for r in brief_reasons:
             db.add_reason(con, run_id, r)
+        reasons += brief_reasons
+        for r in write_summary(con, run_id, llm, cfg):
+            db.add_reason(con, run_id, r)
+            reasons.append(r)
         status = "partial" if reasons else "complete"
         db.finish_run(con, run_id, status, db.utcnow())
         html, md = render_report(con, run_id, cfg, paths.reports_dir)

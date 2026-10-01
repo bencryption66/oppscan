@@ -150,6 +150,20 @@ def test_bad_profile_is_a_value_error(con, monkeypatch, tmp_path):
         AnthropicLLM(con)
 
 
+def test_auth_token_env_constructs(con, monkeypatch, tmp_path):
+    no_anthropic_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "x")
+    AnthropicLLM(con)
+
+
+def test_default_profile_on_disk_constructs(con, monkeypatch, tmp_path):
+    no_anthropic_env(monkeypatch, tmp_path)
+    configs = tmp_path / ".config" / "anthropic" / "configs"
+    configs.mkdir(parents=True)
+    (configs / "default.json").write_text('{"authentication": {"type": "user_oauth"}}')
+    AnthropicLLM(con)
+
+
 def test_fake_llm_outputs_validate():
     fake = FakeLLM()
     clusters = fake.call("cluster", {"seeds": [{"seed": "budget a", "titles": []},

@@ -95,6 +95,26 @@ def test_anthropic_api_error_becomes_output_error(con):
         AnthropicLLM(con, client=client).call("cluster", PAYLOAD)
 
 
+def no_anthropic_env(monkeypatch, tmp_path):
+    import os
+    for name in list(os.environ):
+        if name.startswith("ANTHROPIC_"):
+            monkeypatch.delenv(name)
+    monkeypatch.setenv("HOME", str(tmp_path))  # no ~/.config/anthropic profile
+
+
+def test_missing_credentials_fail_at_construction(con, monkeypatch, tmp_path):
+    no_anthropic_env(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="No Anthropic credentials"):
+        AnthropicLLM(con)
+
+
+def test_api_key_env_constructs(con, monkeypatch, tmp_path):
+    no_anthropic_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    AnthropicLLM(con)
+
+
 def test_fake_llm_outputs_validate():
     fake = FakeLLM()
     clusters = fake.call("cluster", {"seeds": [{"seed": "budget a", "titles": []},

@@ -1,3 +1,4 @@
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -150,11 +151,11 @@ def test_missing_llm_credentials_fail_before_etsy_calls(tmp_path, monkeypatch):
     paths = setup_config(tmp_path)
     calls = []
 
-    def no_credentials(con):
-        raise RuntimeError("no anthropic credentials")
-
-    monkeypatch.setattr("oppscan.pipeline.AnthropicLLM", no_credentials)
-    with pytest.raises(RuntimeError, match="credentials"):
+    for name in list(os.environ):
+        if name.startswith("ANTHROPIC_"):
+            monkeypatch.delenv(name)
+    monkeypatch.setenv("HOME", str(tmp_path))  # real SDK client, no credentials anywhere
+    with pytest.raises(ValueError, match="No Anthropic credentials"):
         run_pipeline(paths, transport=counting_transport(T1, calls), api_key="fixture", now=T1, qps=1e6)
     assert calls == []
 

@@ -41,6 +41,9 @@ class AnthropicLLM:
     def __init__(self, con, client=None):
         if client is None:
             client = anthropic.Anthropic()
+            # The SDK only complains about missing credentials on the first request.
+            if client.api_key is None and client.auth_token is None and client.credentials is None:
+                raise ValueError("No Anthropic credentials found: set ANTHROPIC_API_KEY or run `ant auth login`")
         self._con = con
         self._client = client
 

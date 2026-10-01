@@ -118,6 +118,9 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
         db.prune_raw(con, paths.archive_dir)
         return RunResult(run_id, status, reasons, html, md)
     except Exception as e:
-        db.add_reason(con, run_id, f"failed: {e!r}")
-        db.finish_run(con, run_id, "failed", db.utcnow())
+        try:
+            db.add_reason(con, run_id, f"failed: {e!r}")
+            db.finish_run(con, run_id, "failed", db.utcnow())
+        except Exception as bookkeeping:  # never mask the original error
+            e.add_note(f"also failed to record the failure: {bookkeeping!r}")
         raise

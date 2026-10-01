@@ -130,6 +130,22 @@ def test_resume_failed_run(tmp_path):
     assert len(calls) == first_calls  # nothing re-fetched
 
 
+def test_failure_bookkeeping_errors_do_not_mask_original(tmp_path, monkeypatch):
+    paths = setup_config(tmp_path)
+
+    class Broken:
+        def call(self, task, payload):
+            raise RuntimeError("boom")
+
+    def broken_db(*args):
+        raise OSError("db gone")
+
+    monkeypatch.setattr("oppscan.db.add_reason", broken_db)
+    monkeypatch.setattr("oppscan.db.finish_run", broken_db)
+    with pytest.raises(RuntimeError, match="boom"):
+        run_pipeline(paths, transport=fake_transport(T1), llm=Broken(), api_key="fixture", now=T1, qps=1e6)
+
+
 def test_missing_llm_credentials_fail_before_etsy_calls(tmp_path, monkeypatch):
     paths = setup_config(tmp_path)
     calls = []

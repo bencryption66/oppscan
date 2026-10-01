@@ -64,8 +64,7 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
             raise ValueError(f"run {resume} is {existing['status']}; "
                              "only a paused, failed or interrupted run can be resumed")
         run_id, as_of = resume, existing["started_at"]
-        db.set_status(con, run_id, "running")
-        db.clear_reasons(con, run_id)
+        db.reopen_run(con, run_id)
     else:
         as_of = now or db.utcnow()
         run_id = db.start_run(con, seeds.file_hash, as_of)

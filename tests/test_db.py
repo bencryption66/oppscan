@@ -46,6 +46,16 @@ def test_clear_reasons(con):
     assert db.get_run(con, run_id)["status_reasons"] == ["two"]
 
 
+def test_reopen_run_resets_failed_run_state(con):
+    run_id = db.start_run(con, "h", T)
+    db.set_suspect(con, run_id)
+    db.add_reason(con, run_id, "failed: boom")
+    db.finish_run(con, run_id, "failed", T + timedelta(minutes=5))
+    db.reopen_run(con, run_id)
+    run = db.get_run(con, run_id)
+    assert (run["status"], run["status_reasons"], run["suspect"], run["finished_at"]) == ("running", [], False, None)
+
+
 def test_previous_run_skips_unfinished_and_failed(con):
     first = db.start_run(con, "h", T)
     db.finish_run(con, first, "complete", T)

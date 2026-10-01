@@ -5,6 +5,7 @@ import hashlib
 import json
 from typing import Protocol
 
+import anthropic
 import jsonschema
 
 from oppscan import prompts
@@ -39,7 +40,6 @@ def validate(task: str, data: dict) -> dict:
 class AnthropicLLM:
     def __init__(self, con, client=None):
         if client is None:
-            import anthropic
             client = anthropic.Anthropic()
         self._con = con
         self._client = client
@@ -64,15 +64,18 @@ class AnthropicLLM:
         raise last_error
 
     def _request(self, model: str, effort: str, system: str, user: str, schema: dict) -> dict:
-        response = self._client.beta.messages.create(
-            model=model,
-            max_tokens=16000,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-            output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
-            betas=[FALLBACK_BETA],
-            fallbacks="default",
-        )
+        try:
+            response = self._client.beta.messages.create(
+                model=model,
+                max_tokens=16000,
+                system=system,
+                messages=[{"role": "user", "content": user}],
+                output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
+                betas=[FALLBACK_BETA],
+                fallbacks="default",
+            )
+        except anthropic.APIError as e:
+            raise LLMOutputError(f"api: {e}") from e
         if response.stop_reason in ("refusal", "max_tokens"):
             raise LLMOutputError(f"stop_reason={response.stop_reason}")
         text = next((b.text for b in response.content if b.type == "text"), None)

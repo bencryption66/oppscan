@@ -1,6 +1,8 @@
 import json
 from types import SimpleNamespace
 
+import anthropic
+import httpx
 import pytest
 
 from oppscan.fake_llm import FakeLLM
@@ -23,7 +25,10 @@ class FakeAnthropic:
 
     def _create(self, **kwargs):
         self.requests.append(kwargs)
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 def test_schemas_are_strict():
@@ -80,6 +85,13 @@ def test_anthropic_llm_raises_after_two_failures(con):
 def test_anthropic_llm_treats_refusal_as_failure(con):
     client = FakeAnthropic(message("", "refusal"), message("", "refusal"))
     with pytest.raises(LLMOutputError, match="refusal"):
+        AnthropicLLM(con, client=client).call("cluster", PAYLOAD)
+
+
+def test_anthropic_api_error_becomes_output_error(con):
+    error = anthropic.APIConnectionError(request=httpx.Request("POST", "https://x"))
+    client = FakeAnthropic(error, error)
+    with pytest.raises(LLMOutputError, match="api: Connection error"):
         AnthropicLLM(con, client=client).call("cluster", PAYLOAD)
 
 

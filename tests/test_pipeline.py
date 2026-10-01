@@ -96,6 +96,53 @@ def test_resume_rejects_completed_run(tmp_path):
         run(paths, T1, resume=first.run_id)
 
 
+def counting_transport(now, calls):
+    inner = fake_transport(now)
+
+    def handler(request):
+        calls.append(str(request.url))
+        return inner.handle_request(request)
+
+    return httpx.MockTransport(handler)
+
+
+def test_resume_failed_run(tmp_path):
+    paths = setup_config(tmp_path)
+    calls = []
+
+    class Broken:
+        def call(self, task, payload):
+            raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        run_pipeline(paths, transport=counting_transport(T1, calls), llm=Broken(),
+                     api_key="fixture", now=T1, qps=1e6)
+    con = duckdb.connect(str(paths.db), read_only=True)
+    run_id, status = con.execute("SELECT run_id, status FROM runs").fetchone()
+    con.close()
+    assert status == "failed"
+    first_calls = len(calls)
+    assert first_calls > 0
+
+    resumed = run(paths, T1, transport=counting_transport(T1, calls), resume=run_id)
+    assert resumed.run_id == run_id
+    assert resumed.status == "complete", resumed.reasons
+    assert len(calls) == first_calls  # nothing re-fetched
+
+
+def test_missing_llm_credentials_fail_before_etsy_calls(tmp_path, monkeypatch):
+    paths = setup_config(tmp_path)
+    calls = []
+
+    def no_credentials(con):
+        raise RuntimeError("no anthropic credentials")
+
+    monkeypatch.setattr("oppscan.pipeline.AnthropicLLM", no_credentials)
+    with pytest.raises(RuntimeError, match="credentials"):
+        run_pipeline(paths, transport=counting_transport(T1, calls), api_key="fixture", now=T1, qps=1e6)
+    assert calls == []
+
+
 def test_resume_rejects_unknown_run(tmp_path):
     paths = setup_config(tmp_path)
     with pytest.raises(ValueError, match="nope"):

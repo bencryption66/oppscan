@@ -1,4 +1,4 @@
-"""Run the whole pipeline once (or resume a paused run) and record its status."""
+"""Run the whole pipeline once (or resume an unfinished run) and record its status."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -19,6 +19,8 @@ from oppscan.metrics import compute_metrics
 from oppscan.report import render_report
 from oppscan.scoring import sanity_check, save_scores, score_niches
 from oppscan.staging import stage_run
+
+RESUMABLE = ("paused", "failed", "running")  # running = interrupted (e.g. Ctrl-C)
 
 
 @dataclass(frozen=True)
@@ -58,8 +60,9 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
         existing = db.get_run(con, resume)
         if existing is None:
             raise ValueError(f"unknown run {resume}")
-        if existing["status"] != "paused":
-            raise ValueError(f"run {resume} is {existing['status']}, only a paused run can be resumed")
+        if existing["status"] not in RESUMABLE:
+            raise ValueError(f"run {resume} is {existing['status']}; "
+                             "only a paused, failed or interrupted run can be resumed")
         run_id, as_of = resume, existing["started_at"]
         db.set_status(con, run_id, "running")
         db.clear_reasons(con, run_id)
@@ -68,6 +71,7 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
         run_id = db.start_run(con, seeds.file_hash, as_of)
 
     try:
+        llm = llm or AnthropicLLM(con)  # fail on missing credentials before spending Etsy quota
         client = EtsyClient(con, run_id, api_key=etsy.api_key, qps=qps or etsy.qps,
                             daily_quota=etsy.daily_quota, transport=transport)
         try:
@@ -80,7 +84,6 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
         finally:
             client.close()
 
-        llm = llm or AnthropicLLM(con)
         reasons: list[str] = []
         if stats.errors:
             reasons.append(f"{len(stats.errors)} Etsy request(s) failed; first: {stats.errors[0]}")

@@ -1,0 +1,54 @@
+"""Mine complaint and wish themes from reviews of each niche's top listings."""
+from __future__ import annotations
+
+import re
+
+from oppscan.db import cluster_version
+from oppscan.llm import LLMClient, LLMOutputError
+from oppscan.metrics import top_listings
+
+WISH_RE = re.compile(r"\b(wish|would be nice|only issue)\b", re.IGNORECASE)
+MAX_REVIEWS = 150
+
+
+def mine_complaints(con, run_id: str, llm: LLMClient, top_n: int) -> list[str]:
+    con.execute("DELETE FROM complaints WHERE run_id = ?", [run_id])
+    con.execute("DELETE FROM complaint_runs WHERE run_id = ?", [run_id])
+    names = dict(con.execute("SELECT niche_id, name FROM niches WHERE cluster_version = ?",
+                             [cluster_version(con, run_id)]).fetchall())
+    failures: list[str] = []
+    for niche_id, lids in top_listings(con, run_id, top_n).items():
+        reviews = _candidate_reviews(con, lids)
+        if not reviews:
+            _set_status(con, run_id, niche_id, "no_reviews")
+            continue
+        try:
+            result = llm.call("complaints", {"niche": names.get(niche_id, niche_id), "reviews": reviews})
+        except LLMOutputError as e:
+            _set_status(con, run_id, niche_id, "failed")
+            failures.append(f"complaints {niche_id}: {e}")
+            continue
+        valid = {r["id"] for r in reviews}
+        for theme in result["themes"]:
+            ids = sorted(set(theme["review_ids"]) & valid)
+            if ids:
+                con.execute("INSERT INTO complaints VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            [run_id, niche_id, theme["theme"], theme["fixable_by_product"],
+                             len(ids), theme["quotes"][:3], ids])
+        _set_status(con, run_id, niche_id, "ok")
+    return failures
+
+
+def _set_status(con, run_id: str, niche_id: str, status: str) -> None:
+    con.execute("INSERT INTO complaint_runs VALUES (?, ?, ?)", [run_id, niche_id, status])
+
+
+def _candidate_reviews(con, listing_ids: list[int]) -> list[dict]:
+    rows = con.execute(
+        "SELECT review_hash, rating, text FROM reviews "
+        "WHERE list_contains(?::BIGINT[], listing_id) AND text <> '' ORDER BY created_at DESC",
+        [listing_ids],
+    ).fetchall()
+    picked = [{"id": h, "rating": rating, "text": text} for h, rating, text in rows
+              if rating <= 4 or WISH_RE.search(text)]
+    return picked[:MAX_REVIEWS]

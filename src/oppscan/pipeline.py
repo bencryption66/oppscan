@@ -43,15 +43,15 @@ class RunResult:
 def run_pipeline(paths: Paths, *, transport: httpx.BaseTransport | None = None,
                  llm: LLMClient | None = None, api_key: str | None = None,
                  resume: str | None = None, now: datetime | None = None,
-                 qps: float | None = None) -> RunResult:
+                 qps: float | None = None, daily_quota: int | None = None) -> RunResult:
     con = db.connect(paths.db)
     try:
-        return _run(con, paths, transport, llm, api_key, resume, now, qps)
+        return _run(con, paths, transport, llm, api_key, resume, now, qps, daily_quota)
     finally:
         con.close()
 
 
-def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
+def _run(con, paths, transport, llm, api_key, resume, now, qps, daily_quota) -> RunResult:
     seeds = load_seeds(paths.config_dir / "seeds.yaml")
     cfg = load_scoring(paths.config_dir / "scoring.yaml")
     etsy = load_etsy(paths.config_dir / "etsy.yaml", api_key=api_key)
@@ -72,7 +72,7 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps) -> RunResult:
     try:
         llm = llm or AnthropicLLM(con)  # fail on missing credentials before spending Etsy quota
         client = EtsyClient(con, run_id, api_key=etsy.api_key, qps=qps or etsy.qps,
-                            daily_quota=etsy.daily_quota, transport=transport)
+                            daily_quota=daily_quota or etsy.daily_quota, transport=transport)
         try:
             stats = collect(client, seeds, etsy)
         except QuotaExhausted as e:

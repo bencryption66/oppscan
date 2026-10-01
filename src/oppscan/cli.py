@@ -32,7 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     extra = {}
     if args.fixtures:
         extra = {"transport": fake_transport(db.utcnow()), "llm": FakeLLM(),
-                 "api_key": "fixture", "qps": 1e6}
+                 "api_key": "fixture", "qps": 1e6, "daily_quota": 10**9}  # fake calls aren't rationed
     try:
         result = run_pipeline(paths, resume=args.resume, **extra)
     except ValueError as e:

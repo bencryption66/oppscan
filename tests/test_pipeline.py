@@ -7,6 +7,7 @@ import duckdb
 import httpx
 import pytest
 
+from oppscan import db
 from oppscan.cli import main
 from oppscan.fake_etsy import fake_transport
 from oppscan.fake_llm import FakeLLM
@@ -174,3 +175,18 @@ def test_cli_fixtures(tmp_path, capsys):
     assert code == 0, out
     assert "complete" in out
     assert list((tmp_path / "reports" / "fixtures").glob("*.html"))
+
+
+def test_cli_fixtures_ignores_daily_quota(tmp_path, capsys):
+    paths = setup_config(tmp_path, quota=5000)
+    (tmp_path / "data").mkdir()
+    con = db.connect(tmp_path / "data" / "fixtures.duckdb")
+    now = db.utcnow()
+    con.executemany("INSERT INTO raw_api VALUES (?, ?, ?, ?, ?)",
+                    [("old", f"/shops/{i}", "{}", now, "{}") for i in range(5000)])
+    con.close()
+    code = main(["run", "--fixtures", "--config-dir", str(paths.config_dir),
+                 "--data-dir", str(tmp_path / "data"), "--reports-dir", str(tmp_path / "reports")])
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "complete" in out

@@ -18,19 +18,22 @@ def mine_complaints(con, run_id: str, llm: LLMClient, top_n: int) -> list[str]:
                              [cluster_version(con, run_id)]).fetchall())
     failures: list[str] = []
     for niche_id, lids in top_listings(con, run_id, top_n).items():
-        reviews = _candidate_reviews(con, lids)
-        if not reviews:
+        candidates = _candidate_reviews(con, lids)
+        if not candidates:
             _set_status(con, run_id, niche_id, "no_reviews")
             continue
+        # Short sequential ids are easier for the model to copy than 16-hex hashes.
+        hashes = {str(i): h for i, (h, _, _) in enumerate(candidates)}
+        reviews = [{"id": str(i), "rating": rating, "text": text}
+                   for i, (_, rating, text) in enumerate(candidates)]
         try:
             result = llm.call("complaints", {"niche": names.get(niche_id, niche_id), "reviews": reviews})
         except LLMOutputError as e:
             _set_status(con, run_id, niche_id, "failed")
             failures.append(f"complaints {niche_id}: {e}")
             continue
-        valid = {r["id"] for r in reviews}
         for theme in result["themes"]:
-            ids = sorted(set(theme["review_ids"]) & valid)
+            ids = sorted({hashes[i] for i in theme["review_ids"] if i in hashes})  # unknown ids ignored
             if ids:
                 con.execute("INSERT INTO complaints VALUES (?, ?, ?, ?, ?, ?, ?)",
                             [run_id, niche_id, theme["theme"], theme["fixable_by_product"],
@@ -43,12 +46,11 @@ def _set_status(con, run_id: str, niche_id: str, status: str) -> None:
     con.execute("INSERT INTO complaint_runs VALUES (?, ?, ?)", [run_id, niche_id, status])
 
 
-def _candidate_reviews(con, listing_ids: list[int]) -> list[dict]:
+def _candidate_reviews(con, listing_ids: list[int]) -> list[tuple[str, int, str]]:
     rows = con.execute(
         "SELECT review_hash, rating, text FROM reviews "
         "WHERE list_contains(?::BIGINT[], listing_id) AND text <> '' ORDER BY created_at DESC",
         [listing_ids],
     ).fetchall()
-    picked = [{"id": h, "rating": rating, "text": text} for h, rating, text in rows
-              if rating <= 4 or WISH_RE.search(text)]
+    picked = [(h, rating, text) for h, rating, text in rows if rating <= 4 or WISH_RE.search(text)]
     return picked[:MAX_REVIEWS]

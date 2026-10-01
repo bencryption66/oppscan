@@ -36,7 +36,8 @@ def test_mines_fixable_complaints(con):
     assert statuses(con) == {"a": "ok", "b": "no_reviews"}
     sent = llm.calls[0][1]
     assert sent["niche"] == "Budget"
-    assert {r["id"] for r in sent["reviews"]} == {neg, wish}
+    assert [r["id"] for r in sent["reviews"]] == ["0", "1"]  # short ids; newest (wish) first
+    assert [r["text"] for r in sent["reviews"]] == ["Wish it had dark mode", "Instructions were confusing"]
 
 
 def test_llm_failure_marks_niche_failed(con):
@@ -56,9 +57,9 @@ def test_hallucinated_review_ids_are_dropped(con):
 
     class Hallucinating:
         def call(self, task, payload):
-            return {"themes": [{"theme": "x", "fixable_by_product": True, "review_ids": ["nope"], "quotes": []}]}
+            return {"themes": [{"theme": "x", "fixable_by_product": True, "review_ids": ["nope", "99"], "quotes": []}]}
 
-    mine_complaints(con, "r1", Hallucinating(), top_n=20)
+    assert mine_complaints(con, "r1", Hallucinating(), top_n=20) == []
     assert con.execute("SELECT count(*) FROM complaints").fetchone()[0] == 0
     assert statuses(con)["a"] == "ok"
 

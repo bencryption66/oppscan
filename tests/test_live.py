@@ -28,7 +28,8 @@ def test_etsy_response_shapes(con):
     for candidate in page["results"]:  # find a listing with enough reviews to check ordering
         reviews = client.get(f"/listings/{candidate['listing_id']}/reviews", {"limit": 5, "offset": 0})
         assert "results" in reviews
-        if len(reviews["results"]) >= 2:
+        timed = [r for r in reviews["results"] if (r.get("create_timestamp") or r.get("created_timestamp")) is not None]
+        if len(timed) >= 2:
             break
     for review in reviews["results"]:
         assert "rating" in review

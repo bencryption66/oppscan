@@ -55,7 +55,10 @@ def _has_credentials(client) -> bool:
 class AnthropicLLM:
     def __init__(self, con, client=None):
         if client is None:
-            client = anthropic.Anthropic()
+            try:
+                client = anthropic.Anthropic()
+            except anthropic.CredentialsError as e:  # e.g. ANTHROPIC_PROFILE names a missing profile
+                raise ValueError(f"Anthropic credentials: {e}") from e
             # The SDK only complains about missing credentials on the first request.
             if not _has_credentials(client):
                 raise ValueError("No Anthropic credentials found: set ANTHROPIC_API_KEY or run `ant auth login`")

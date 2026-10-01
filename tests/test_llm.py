@@ -143,6 +143,13 @@ def test_custom_headers_auth_constructs(con, monkeypatch, tmp_path):
     AnthropicLLM(con)
 
 
+def test_bad_profile_is_a_value_error(con, monkeypatch, tmp_path):
+    no_anthropic_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("ANTHROPIC_PROFILE", "work")  # no configs/work.json under tmp HOME
+    with pytest.raises(ValueError, match="Anthropic credentials: .*work"):
+        AnthropicLLM(con)
+
+
 def test_fake_llm_outputs_validate():
     fake = FakeLLM()
     clusters = fake.call("cluster", {"seeds": [{"seed": "budget a", "titles": []},

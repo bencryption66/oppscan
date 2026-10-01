@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oppscan {{ run.run_id }}</title>
+<style>
+:root { --bg:#ffffff; --fg:#1d1d1f; --muted:#6e6e73; --line:#e5e5ea; --bar:#3a6ea5; --neg:#b54545; --card:#f7f7f9; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#141416; --fg:#ececf0; --muted:#9a9aa2; --line:#2c2c31; --bar:#6c9bd2; --neg:#dd7777; --card:#1d1d21; }
+}
+body { background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; margin:0 auto; max-width:1100px; padding:24px 16px; }
+a { color:var(--bar); }
+h1 { font-size:1.5rem; margin:0 0 4px; }
+h2 { margin-top:2rem; border-bottom:1px solid var(--line); padding-bottom:4px; }
+.muted { color:var(--muted); }
+.badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:.8rem; border:1px solid var(--line); }
+.badge.bad { color:var(--neg); border-color:var(--neg); }
+.table-wrap { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:.9rem; }
+th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.bar { background:var(--line); height:6px; width:60px; border-radius:3px; }
+.bar span { display:block; height:6px; background:var(--bar); border-radius:3px; }
+.bar.neg span { background:var(--neg); }
+.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin:16px 0; }
+.card h3 { margin:0 0 8px; }
+ul { margin:4px 0 8px; padding-left:20px; }
+</style>
+</head>
+<body>
+<h1>Etsy template opportunities</h1>
+<p class="muted">Run {{ run.run_id }} · {{ run.started_at.strftime("%Y-%m-%d %H:%M") }} UTC · {{ counts.seeds }} seeds · {{ counts.listings }} listings · {{ counts.reviews }} reviews · {{ run.api_calls }} API calls{% if prev_run_id %} · <a href="{{ prev_run_id }}.html">previous run</a>{% endif %}</p>
+<p><span class="badge{% if run.status != 'complete' %} bad{% endif %}">{{ run.status }}</span>
+<span class="badge{% if run.suspect %} bad{% endif %}">sanity {{ "suspect" if run.suspect else "ok" }}</span></p>
+{% if run.status_reasons %}<ul class="muted">{% for r in run.status_reasons %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+{% if summary %}<p>{{ summary }}</p>{% endif %}
+
+<h2>Ranked niches</h2>
+<div class="table-wrap"><table>
+<tr><th>#</th><th>Niche</th><th>Score</th><th>Demand</th><th>Entry</th><th>Gap</th><th>Price</th><th>Crowding</th><th>Conf.</th><th>Median $</th><th>Δ</th></tr>
+{% for r in rows %}
+<tr>
+<td class="num">{{ r.rank }}</td><td>{{ r.name }}</td><td class="num">{{ "%.2f"|format(r.score) }}</td>
+{% for p in [r.pct_demand, r.pct_entry, r.pct_gap, r.pct_price] %}<td><div class="bar"><span style="width:{{ (p * 100)|round|int }}%"></span></div></td>{% endfor %}
+<td><div class="bar neg"><span style="width:{{ (r.pct_crowding * 100)|round|int }}%"></span></div></td>
+<td>{{ r.confidence }}</td>
+<td class="num">{{ "%.2f"|format(r.median_price) if r.median_price is not none else "–" }}</td>
+<td>{{ r.change }}</td>
+</tr>
+{% endfor %}
+</table></div>
+
+<h2>Top {{ cards|length }} niches</h2>
+{% for c in cards %}
+<div class="card">
+<h3>{{ c.rank }}. {{ c.name }}</h3>
+<p class="muted">{{ c.description }}</p>
+<ul>{% for e in c.explanations %}<li>{{ e }}</li>{% endfor %}</ul>
+{% if c.complaints %}<strong>Fixable complaints</strong>
+<ul>{% for k in c.complaints %}<li>{{ k.theme }} ({{ k.mentions }} reviews){% for q in k.quotes %} — “{{ q }}”{% endfor %}</li>{% endfor %}</ul>{% endif %}
+{% if c.competitors %}<strong>Strongest competitors</strong>
+<ul>{% for k in c.competitors %}<li><a href="{{ k.url }}">{{ k.title }}</a> · ${{ "%.2f"|format(k.price_usd) }} · {{ k.reviews_90d }} reviews in 90 days</li>{% endfor %}</ul>{% endif %}
+{% if c.brief %}<strong>Draft brief</strong>
+<ul>
+<li>Buyer: {{ c.brief.target_buyer }}</li>
+<li>Core features: {{ c.brief.core_features|join("; ") }}</li>
+<li>Do better: {{ c.brief.differentiators|join("; ") }}</li>
+<li>Suggested price: ${{ "%.2f"|format(c.brief.suggested_price_usd) }}</li>
+<li>Title ideas: {{ c.brief.title_ideas|join(" / ") }}</li>
+<li>Tags: {{ c.brief.tags|join(", ") }}</li>
+</ul>
+{% else %}<p class="muted">No brief (generation failed).</p>{% endif %}
+</div>
+{% endfor %}
+
+<h2>Dropped and low-confidence</h2>
+{% if dropped %}<ul>{% for d in dropped %}<li>{{ d.name }} — {{ d.reason }}</li>{% endfor %}</ul>{% else %}<p class="muted">None.</p>{% endif %}
+
+<h2>Method</h2>
+<p>score = {{ weights.demand }}·Demand + {{ weights.entry }}·Entry + {{ weights.gap }}·Gap + {{ weights.price }}·Price − {{ weights.crowding }}·Crowding. Each component is a percentile across this run's niches, computed over the top {{ top_n }} search results per niche.</p>
+<ul>
+<li>Demand: reviews in the last {{ window }} days{% if blended %}, blended 50/50 with favourites gained since the previous run{% endif %}. Niches below the {{ (floor * 100)|int }}th demand percentile are dropped.</li>
+<li>Entry: share of recent reviews that went to listings under {{ new_days }} days old.</li>
+<li>Gap: complaints a better template would fix, per 100 reviews.</li>
+<li>Price: median listing price (USD).</li>
+<li>Crowding: total listings for the niche's keywords, and the top 3 shops' share of recent reviews.</li>
+</ul>
+<p class="muted">These are proxies. Reviews are only a fraction of sales, so this ranks niches against each other; it does not estimate sales.</p>
+</body>
+</html>

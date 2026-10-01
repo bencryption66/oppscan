@@ -1,0 +1,49 @@
+# Etsy template opportunities — run {{ run.run_id }}
+
+Status: **{{ run.status }}** · sanity: **{{ "suspect" if run.suspect else "ok" }}** · {{ counts.seeds }} seeds · {{ counts.listings }} listings · {{ counts.reviews }} reviews · {{ run.api_calls }} API calls{% if prev_run_id %} · previous run: {{ prev_run_id }}{% endif %}
+{% for r in run.status_reasons %}
+- {{ r }}
+{%- endfor %}
+
+{{ summary or "" }}
+
+## Ranked niches
+
+| # | Niche | Score | Demand | Entry | Gap | Price | Crowding | Conf. | Median $ | Δ |
+|---|---|---|---|---|---|---|---|---|---|---|
+{% for r in rows -%}
+| {{ r.rank }} | {{ r.name }} | {{ "%.2f"|format(r.score) }} | {{ "%.2f"|format(r.pct_demand) }} | {{ "%.2f"|format(r.pct_entry) }} | {{ "%.2f"|format(r.pct_gap) }} | {{ "%.2f"|format(r.pct_price) }} | {{ "%.2f"|format(r.pct_crowding) }} | {{ r.confidence }} | {{ "%.2f"|format(r.median_price) if r.median_price is not none else "–" }} | {{ r.change }} |
+{% endfor %}
+## Top {{ cards|length }} niches
+{% for c in cards %}
+### {{ c.rank }}. {{ c.name }}
+
+{% for e in c.explanations -%}
+- {{ e }}
+{% endfor %}
+{% if c.complaints %}**Fixable complaints**
+{% for k in c.complaints %}- {{ k.theme }} ({{ k.mentions }} reviews){% for q in k.quotes %} — "{{ q }}"{% endfor %}
+{% endfor %}{% endif %}
+{% if c.competitors %}**Strongest competitors**
+{% for k in c.competitors %}- [{{ k.title }}]({{ k.url }}) · ${{ "%.2f"|format(k.price_usd) }} · {{ k.reviews_90d }} reviews in 90 days
+{% endfor %}{% endif %}
+{% if c.brief %}**Draft brief**
+- Buyer: {{ c.brief.target_buyer }}
+- Core features: {{ c.brief.core_features|join("; ") }}
+- Do better: {{ c.brief.differentiators|join("; ") }}
+- Suggested price: ${{ "%.2f"|format(c.brief.suggested_price_usd) }}
+- Title ideas: {{ c.brief.title_ideas|join(" / ") }}
+- Tags: {{ c.brief.tags|join(", ") }}
+{% else %}_No brief (generation failed)._
+{% endif %}
+{% endfor %}
+## Dropped and low-confidence
+{% for d in dropped %}
+- {{ d.name }} — {{ d.reason }}
+{%- else %}
+None.
+{%- endfor %}
+
+## Method
+
+score = {{ weights.demand }}·Demand + {{ weights.entry }}·Entry + {{ weights.gap }}·Gap + {{ weights.price }}·Price − {{ weights.crowding }}·Crowding, each a percentile across this run's niches over the top {{ top_n }} search results per niche. These are proxies: the report ranks niches against each other and does not estimate sales.

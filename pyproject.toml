@@ -1,0 +1,32 @@
+[project]
+name = "oppscan"
+version = "0.1.0"
+description = "Etsy digital-template opportunity scanner"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=1.11",
+    "duckdb>=1.1",
+    "httpx>=0.27",
+    "jinja2>=3.1",
+    "jsonschema>=4.23",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+oppscan = "oppscan.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oppscan"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+markers = ["live: calls real external APIs"]
+addopts = "-m 'not live'"

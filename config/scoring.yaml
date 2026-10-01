@@ -1,0 +1,16 @@
+weights:
+  demand: 0.35
+  entry: 0.25
+  gap: 0.20
+  price: 0.10
+  crowding: 0.10        # subtracted
+demand_floor_pct: 0.25
+high_confidence:
+  min_reviews_90d: 30
+  min_listings: 8
+top_n_per_niche: 20
+review_window_days: 90
+new_listing_days: 365
+report_top_k: 10
+known_big_seeds:
+  - monthly budget spreadsheet

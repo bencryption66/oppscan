@@ -1,0 +1,6 @@
+# Confirm qps and daily_quota against the limits shown for your approved Etsy app.
+qps: 5
+daily_quota: 5000
+search_depth: 300       # listings fetched per seed (3 pages of 100)
+reviews_for_top: 20     # listings per seed whose reviews and shop are fetched
+max_review_pages: 3     # pages of 100 reviews per listing

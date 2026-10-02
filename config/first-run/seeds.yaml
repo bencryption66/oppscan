@@ -1,0 +1,32 @@
+# First-run profile: 25 seeds spread across the main template categories.
+# The full list is config/seeds.yaml.
+seeds:
+  # personal finance
+  - monthly budget spreadsheet
+  - paycheck budget spreadsheet
+  - debt snowball spreadsheet
+  - savings tracker spreadsheet
+  - net worth tracker spreadsheet
+  - stock portfolio tracker spreadsheet
+  # small business
+  - small business bookkeeping spreadsheet
+  - self employed tax spreadsheet
+  - inventory tracker spreadsheet
+  - etsy seller spreadsheet
+  - rental property spreadsheet
+  - crm spreadsheet template
+  # life and home
+  - wedding budget spreadsheet
+  - meal planner spreadsheet
+  - habit tracker spreadsheet
+  - cleaning schedule template
+  - job application tracker
+  - travel planner spreadsheet
+  # notion
+  - notion life planner
+  - notion adhd planner
+  - notion finance tracker
+  - notion business dashboard
+  - notion student planner
+  - notion second brain
+  - notion content planner

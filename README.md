@@ -27,8 +27,13 @@ A paused run (Etsy daily quota or persistent rate limiting) exits with code 2 an
 `--resume` command. `--resume` re-uses the responses already fetched, so it spends no quota on
 them. Resuming a complete or partial run, or an unknown id, prints `error: ...` and exits with 1.
 
-For the first live run, set `max_review_pages: 1` and use a smaller seed list to stay inside the
-daily quota.
+For the first live run, use the smaller profile in `config/first-run/` (25 seeds, one review page
+per listing, roughly 1,100 Etsy calls). It shares `scoring.yaml` and `fx.yaml` with `config/` via
+symlinks:
+
+```bash
+uv run oppscan run --config-dir config/first-run
+```
 
 Edit `config/seeds.yaml` to change what's searched (this re-clusters niches on the next run) and
 `config/scoring.yaml` to change weights or thresholds. `config/fx.yaml` holds the static exchange

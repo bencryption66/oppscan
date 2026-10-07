@@ -36,7 +36,8 @@ def setup_config(tmp_path, quota=100_000):
     shutil.copy(REPO / "config" / "fx.yaml", config / "fx.yaml")
     (config / "seeds.yaml").write_text(SEEDS)
     (config / "etsy.yaml").write_text(
-        f"qps: 5\ndaily_quota: {quota}\nsearch_depth: 200\nreviews_for_top: 5\nmax_review_pages: 2\n")
+        f"qps: 5\ndaily_quota: {quota}\nsearch_depth: 200\nreviews_for_top: 5\nmax_review_pages: 2\n"
+        "languages: [en]\n")
     return Paths(db=tmp_path / "data" / "test.duckdb", config_dir=config,
                  reports_dir=tmp_path / "reports", archive_dir=tmp_path / "data" / "archive")
 
@@ -60,8 +61,10 @@ def test_two_runs_end_to_end(tmp_path):
     con = duckdb.connect(str(paths.db), read_only=True)
     with_delta = con.execute("SELECT count(*) FROM niche_scores WHERE run_id = ? AND fav_delta IS NOT NULL",
                              [second.run_id]).fetchone()[0]
+    languages = {r[0] for r in con.execute("SELECT DISTINCT language FROM listing_snapshots").fetchall()}
     con.close()
     assert with_delta > 0
+    assert languages == {"en-US"}  # the fake API's "de" listings are filtered out
 
 
 def test_quota_pause_then_resume(tmp_path):

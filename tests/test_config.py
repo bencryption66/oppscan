@@ -102,3 +102,25 @@ def test_load_fx_rejects_non_positive_rate(tmp_path, rate):
     path.write_text(f"per_usd:\n  USD: 1.0\n  EUR: {rate}\n")
     with pytest.raises(ValueError, match="EUR"):
         load_fx(path)
+
+
+def test_language_ok():
+    from oppscan.config import language_ok
+    assert language_ok("en-US", ("en",))
+    assert language_ok("en-GB", ("EN",))
+    assert not language_ok("de", ("en",))
+    assert language_ok(None, ("en",))
+    assert language_ok("de", ())
+    assert language_ok("fr-CA", ("en", "fr"))
+
+
+def test_repo_etsy_configs_keep_english(monkeypatch):
+    monkeypatch.setenv("ETSY_API_KEY", "abc")
+    for path in (REPO / "config" / "etsy.yaml", REPO / "config" / "first-run" / "etsy.yaml"):
+        assert load_etsy(path).languages == ("en",)
+
+
+def test_load_etsy_languages_default_to_all(tmp_path):
+    path = tmp_path / "etsy.yaml"
+    path.write_text("qps: 5\ndaily_quota: 10\nsearch_depth: 100\nreviews_for_top: 5\nmax_review_pages: 1\n")
+    assert load_etsy(path, api_key="k").languages == ()

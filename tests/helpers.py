@@ -33,7 +33,8 @@ def add_run(con, run_id: str, started_at: datetime, status: str = "running") -> 
 def add_listing(con, run_id, listing_id, *, seed, rank, price=10.0, favs=0,
                 created=datetime(2024, 1, 1), shop_id=1, title=None) -> None:
     con.execute(
-        "INSERT OR IGNORE INTO listing_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO listing_snapshots (run_id, listing_id, title, tags, price_usd, num_favorers, "
+        "views, created_at, shop_id, listing_type, url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [run_id, listing_id, title or f"Listing {listing_id}", ["tag"], price, favs, 0,
          created, shop_id, "download", f"https://www.etsy.com/listing/{listing_id}"],
     )

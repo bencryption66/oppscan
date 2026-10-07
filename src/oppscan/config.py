@@ -45,6 +45,14 @@ class EtsySettings:
     search_depth: int
     reviews_for_top: int
     max_review_pages: int
+    languages: tuple[str, ...] = ()  # listing-language prefixes to keep; empty keeps all
+
+
+def language_ok(language: str | None, languages: tuple[str, ...]) -> bool:
+    """True if a listing in `language` should be kept: no filter, unknown language, or a prefix match."""
+    if not languages or not language:
+        return True
+    return language.lower().startswith(tuple(p.lower() for p in languages))
 
 
 def normalise(term: str) -> str:
@@ -88,6 +96,7 @@ def load_etsy(path: Path, api_key: str | None = None) -> EtsySettings:
         search_depth=int(d["search_depth"]),
         reviews_for_top=int(d["reviews_for_top"]),
         max_review_pages=int(d["max_review_pages"]),
+        languages=tuple(d.get("languages", [])),
     )
 
 

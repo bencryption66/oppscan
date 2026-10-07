@@ -95,3 +95,25 @@ def test_restaging_is_idempotent(con):
     stage_run(con, "r1", FX)
     assert con.execute("SELECT count(*) FROM search_hits").fetchone()[0] == 1
     assert con.execute("SELECT count(*) FROM listing_snapshots").fetchone()[0] == 1
+
+
+def test_language_filter_keeps_matching_and_unknown_languages(con):
+    search(con, "r1", "budget", 0, [
+        listing(1, language="en-US"),
+        listing(2, language="de"),
+        listing(3, language="en-GB"),
+        listing(4),
+        listing(5, language=None),
+        listing(6, language="EN"),
+    ])
+    stage_run(con, "r1", FX, languages=("en",))
+    rows = con.execute("SELECT listing_id, language FROM listing_snapshots ORDER BY listing_id").fetchall()
+    assert rows == [(1, "en-US"), (3, "en-GB"), (4, None), (5, None), (6, "EN")]
+    hits = con.execute("SELECT listing_id, search_rank FROM search_hits ORDER BY listing_id").fetchall()
+    assert hits == [(1, 1), (3, 3), (4, 4), (5, 5), (6, 6)]
+
+
+def test_empty_language_list_keeps_every_language(con):
+    search(con, "r1", "budget", 0, [listing(1, language="de"), listing(2, language="fr")])
+    stage_run(con, "r1", FX, languages=())
+    assert con.execute("SELECT count(*) FROM listing_snapshots").fetchone()[0] == 2

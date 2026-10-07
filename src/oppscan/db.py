@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS seed_counts (
 CREATE TABLE IF NOT EXISTS listing_snapshots (
     run_id VARCHAR, listing_id BIGINT, title VARCHAR, tags VARCHAR[], price_usd DOUBLE,
     num_favorers INTEGER, views INTEGER, created_at TIMESTAMP, shop_id BIGINT,
-    listing_type VARCHAR, url VARCHAR,
+    listing_type VARCHAR, url VARCHAR, language VARCHAR,
     PRIMARY KEY (run_id, listing_id)
 );
 CREATE TABLE IF NOT EXISTS shop_snapshots (
@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS niche_scores (
     top3_share DOUBLE,
     pct_demand DOUBLE, pct_entry DOUBLE, pct_gap DOUBLE, pct_price DOUBLE, pct_crowding DOUBLE,
     score DOUBLE, confidence VARCHAR, dropped BOOLEAN, dropped_reason VARCHAR, rank INTEGER,
+    fav_rate DOUBLE, engaged_listings INTEGER,
     PRIMARY KEY (run_id, niche_id)
 );
 CREATE TABLE IF NOT EXISTS briefs (
@@ -87,6 +88,14 @@ CREATE TABLE IF NOT EXISTS briefs (
 CREATE TABLE IF NOT EXISTS run_summary (
     run_id VARCHAR PRIMARY KEY, summary VARCHAR
 );
+"""
+
+# Columns added after the first release. Each is also at the end of its CREATE TABLE above,
+# so new and migrated databases end up with the same column order.
+MIGRATIONS = """
+ALTER TABLE listing_snapshots ADD COLUMN IF NOT EXISTS language VARCHAR;
+ALTER TABLE niche_scores ADD COLUMN IF NOT EXISTS fav_rate DOUBLE;
+ALTER TABLE niche_scores ADD COLUMN IF NOT EXISTS engaged_listings INTEGER;
 """
 
 RUN_COLUMNS = ["run_id", "started_at", "finished_at", "seeds_hash", "api_calls",
@@ -102,6 +111,7 @@ def connect(path: Path | str) -> duckdb.DuckDBPyConnection:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(path))
     con.execute(SCHEMA)
+    con.execute(MIGRATIONS)
     return con
 
 

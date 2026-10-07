@@ -53,6 +53,7 @@ def _listing_attrs(listing_id: int) -> dict:
         "shop_id": 50_000 + rng.randint(0, 120),
         "adjective": rng.choice(ADJECTIVES),
         "noun": rng.choice(NOUNS),
+        "language": rng.choices(["en-US", "de"], [92, 8])[0],  # drawn last so other attributes are unchanged
     }
 
 
@@ -71,6 +72,7 @@ def _listing(listing_id: int, family: str, now: datetime) -> dict:
         "shop_id": a["shop_id"],
         "listing_type": a["listing_type"],
         "url": f"https://www.etsy.com/listing/{listing_id}",
+        "language": a["language"],
     }
 
 

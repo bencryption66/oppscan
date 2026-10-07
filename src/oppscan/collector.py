@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from oppscan.config import EtsySettings, Seeds
+from oppscan.config import EtsySettings, Seeds, language_ok
 from oppscan.etsy import EtsyClient, EtsyError
 
 PAGE = 100
@@ -26,7 +26,8 @@ def collect(client: EtsyClient, seeds: Seeds, settings: EtsySettings) -> Collect
             continue
         stats.seeds += 1
         # Same filter as staging, so the listings reviewed are the ones scored.
-        scorable = [l for l in listings if l.get("listing_type") == "download"]
+        scorable = [l for l in listings if l.get("listing_type") == "download"
+                    and language_ok(l.get("language"), settings.languages)]
         stats.listings_seen += len(scorable)
         top = scorable[: settings.reviews_for_top]
         for shop_id in dict.fromkeys(l["shop_id"] for l in top):

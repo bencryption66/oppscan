@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timedelta
 
+import duckdb
+
 from oppscan import db
 
 T = datetime(2026, 10, 1, 9, 30, 0)
@@ -71,3 +73,43 @@ def test_prune_raw_archives_old_runs(con, tmp_path):
     assert archived == ["20261001T093000", "20261002T093000"]
     assert (tmp_path / "archive" / "raw_api_20261001T093000.parquet").exists()
     assert con.execute("SELECT count(DISTINCT run_id) FROM raw_api").fetchone()[0] == 8
+
+
+OLD_SCHEMA = """
+CREATE TABLE listing_snapshots (
+    run_id VARCHAR, listing_id BIGINT, title VARCHAR, tags VARCHAR[], price_usd DOUBLE,
+    num_favorers INTEGER, views INTEGER, created_at TIMESTAMP, shop_id BIGINT,
+    listing_type VARCHAR, url VARCHAR,
+    PRIMARY KEY (run_id, listing_id)
+);
+CREATE TABLE niche_scores (
+    run_id VARCHAR, niche_id VARCHAR,
+    reviews_90d INTEGER, active_listings INTEGER, fav_delta INTEGER, entry_share DOUBLE,
+    gap_per_100 DOUBLE, gap_missing BOOLEAN, median_price DOUBLE, listing_count INTEGER,
+    top3_share DOUBLE,
+    pct_demand DOUBLE, pct_entry DOUBLE, pct_gap DOUBLE, pct_price DOUBLE, pct_crowding DOUBLE,
+    score DOUBLE, confidence VARCHAR, dropped BOOLEAN, dropped_reason VARCHAR, rank INTEGER,
+    PRIMARY KEY (run_id, niche_id)
+);
+"""
+
+
+def columns(con, table):
+    return [r[0] for r in con.execute(f"DESCRIBE {table}").fetchall()]
+
+
+def test_connect_migrates_old_schema_to_new_column_order(tmp_path):
+    old_path = tmp_path / "old.duckdb"
+    old = duckdb.connect(str(old_path))
+    old.execute(OLD_SCHEMA)
+    old.execute("INSERT INTO listing_snapshots VALUES ('r1', 1, 't', ['a'], 9.5, 3, 0, NULL, 7, 'download', 'u')")
+    old.close()
+
+    migrated = db.connect(old_path)
+    fresh = db.connect(":memory:")
+    for table, added in [("listing_snapshots", ["language"]), ("niche_scores", ["fav_rate", "engaged_listings"])]:
+        assert columns(migrated, table)[-len(added):] == added
+        assert columns(migrated, table) == columns(fresh, table)
+    assert migrated.execute("SELECT listing_id, language FROM listing_snapshots").fetchall() == [(1, None)]
+    migrated.close()
+    db.connect(old_path).close()  # migrating twice is a no-op

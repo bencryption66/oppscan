@@ -104,12 +104,18 @@ def sanity_check(scores: list[NicheScore], seed_niche: dict[str, str],
     return problems
 
 
+SCORE_COLUMNS = ["run_id", "niche_id", "reviews_90d", "active_listings", "fav_delta", "entry_share",
+                 "gap_per_100", "gap_missing", "median_price", "listing_count", "top3_share",
+                 "pct_demand", "pct_entry", "pct_gap", "pct_price", "pct_crowding",
+                 "score", "confidence", "dropped", "dropped_reason", "rank"]
+
+
 def save_scores(con, run_id: str, scores: list[NicheScore]) -> None:
     con.execute("DELETE FROM niche_scores WHERE run_id = ?", [run_id])
     if not scores:
         return
     con.executemany(
-        "INSERT INTO niche_scores VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        f"INSERT INTO niche_scores ({', '.join(SCORE_COLUMNS)}) VALUES ({', '.join('?' * len(SCORE_COLUMNS))})",
         [(run_id, s.metrics.niche_id, s.metrics.reviews_90d, s.metrics.active_listings,
           s.metrics.fav_delta, s.metrics.entry_share, s.metrics.gap_per_100, s.gap_missing,
           s.metrics.median_price, s.metrics.listing_count, s.metrics.top3_share,

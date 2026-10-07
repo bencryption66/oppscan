@@ -89,7 +89,7 @@ def _run(con, paths, transport, llm, api_key, resume, now, qps, daily_quota) -> 
         if stats.errors:
             reasons.append(f"{len(stats.errors)} Etsy request(s) failed; first: {stats.errors[0]}")
             db.add_reason(con, run_id, reasons[-1])
-        stage_run(con, run_id, fx)
+        stage_run(con, run_id, fx, etsy.languages)
         cluster(con, run_id, seeds, llm)
         complaint_reasons = mine_complaints(con, run_id, llm, cfg.top_n_per_niche)
         for r in complaint_reasons:

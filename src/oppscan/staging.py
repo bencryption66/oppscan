@@ -6,6 +6,8 @@ import json
 import re
 from datetime import UTC, datetime
 
+from oppscan.config import language_ok
+
 SHOP_RE = re.compile(r"^/shops/(\d+)$")
 REVIEWS_RE = re.compile(r"^/listings/(\d+)/reviews$")
 STAGED_TABLES = ("search_hits", "seed_counts", "listing_snapshots", "shop_snapshots")
@@ -32,7 +34,7 @@ def price_usd(price: dict | None, per_usd: dict[str, float]) -> float | None:
     return round(amount / divisor / rate, 2)
 
 
-def stage_run(con, run_id: str, per_usd: dict[str, float]) -> None:
+def stage_run(con, run_id: str, per_usd: dict[str, float], languages: tuple[str, ...] = ()) -> None:
     for table in STAGED_TABLES:
         con.execute(f"DELETE FROM {table} WHERE run_id = ?", [run_id])
 
@@ -51,7 +53,7 @@ def stage_run(con, run_id: str, per_usd: dict[str, float]) -> None:
             if offset == 0:
                 counts[seed] = int(payload.get("count", 0))
             for i, item in enumerate(payload.get("results", [])):
-                if item.get("listing_type") != "download":
+                if item.get("listing_type") != "download" or not language_ok(item.get("language"), languages):
                     continue
                 usd = price_usd(item.get("price"), per_usd)
                 lid = int(item["listing_id"])
@@ -61,7 +63,8 @@ def stage_run(con, run_id: str, per_usd: dict[str, float]) -> None:
                            or item.get("creation_timestamp"))
                 listings[lid] = (run_id, lid, item.get("title", ""), item.get("tags") or [], usd,
                                  int(item.get("num_favorers") or 0), int(item.get("views") or 0),
-                                 _ts(created), int(item["shop_id"]), item["listing_type"], item.get("url"))
+                                 _ts(created), int(item["shop_id"]), item["listing_type"], item.get("url"),
+                                 item.get("language"))
         elif SHOP_RE.match(endpoint):
             shop_id = int(payload["shop_id"])
             shops[shop_id] = (run_id, shop_id, payload.get("shop_name"),
@@ -83,7 +86,9 @@ def stage_run(con, run_id: str, per_usd: dict[str, float]) -> None:
         con.executemany("INSERT INTO seed_counts VALUES (?, ?, ?)",
                         [(run_id, seed, n) for seed, n in counts.items()])
     if listings:
-        con.executemany("INSERT INTO listing_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        con.executemany("INSERT INTO listing_snapshots (run_id, listing_id, title, tags, price_usd, "
+                        "num_favorers, views, created_at, shop_id, listing_type, url, language) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         list(listings.values()))
     if shops:
         con.executemany("INSERT INTO shop_snapshots VALUES (?, ?, ?, ?, ?, ?, ?)", list(shops.values()))

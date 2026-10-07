@@ -35,6 +35,7 @@ def setup_config(tmp_path, quota=100_000):
     config.mkdir(exist_ok=True)
     # Score the same top 5 per niche whose reviews are fetched (reviews_for_top), keeping the test fast.
     scoring = (REPO / "config" / "scoring.yaml").read_text()
+    assert "top_n_per_niche: 20" in scoring
     (config / "scoring.yaml").write_text(scoring.replace("top_n_per_niche: 20", "top_n_per_niche: 5"))
     shutil.copy(REPO / "config" / "fx.yaml", config / "fx.yaml")
     (config / "seeds.yaml").write_text(SEEDS)

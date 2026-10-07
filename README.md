@@ -44,7 +44,7 @@ oldest to newest. Recovering an older failed run with `rescore` makes it the bas
 runs after it, so re-score those afterwards too.
 
 For the first live run, use the smaller profile in `config/first-run/` (25 seeds, one review page
-per listing, roughly 1,100 Etsy calls). It shares `scoring.yaml` and `fx.yaml` with `config/` via
+per listing, reviews for the top 30 listings per seed, roughly 1,600 Etsy calls). It shares `scoring.yaml` and `fx.yaml` with `config/` via
 symlinks:
 
 ```bash

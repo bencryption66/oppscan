@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 from oppscan.config import EtsySettings, Seeds, language_ok
 from oppscan.etsy import EtsyClient, EtsyError
+from oppscan.metrics import rank_by_favourites
 
 PAGE = 100
 
@@ -29,7 +30,8 @@ def collect(client: EtsyClient, seeds: Seeds, settings: EtsySettings) -> Collect
         scorable = [l for l in listings if l.get("listing_type") == "download"
                     and language_ok(l.get("language"), settings.languages)]
         stats.listings_seen += len(scorable)
-        top = scorable[: settings.reviews_for_top]
+        # Most favourited first (metrics.TOP_LISTINGS_RULE), so reviews cover the listings that get scored.
+        top = rank_by_favourites(scorable)[: settings.reviews_for_top]
         for shop_id in dict.fromkeys(l["shop_id"] for l in top):
             try:
                 client.get(f"/shops/{shop_id}")

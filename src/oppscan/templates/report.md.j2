@@ -46,7 +46,7 @@ None.
 
 ## Method
 
-score = {{ weights.demand }}·Demand + {{ weights.entry }}·Entry + {{ weights.gap }}·Gap + {{ weights.price }}·Price − {{ weights.crowding }}·Crowding, each a percentile across this run's niches over the top {{ top_n }} search results per niche.
+score = {{ weights.demand }}·Demand + {{ weights.entry }}·Entry + {{ weights.gap }}·Gap + {{ weights.price }}·Price − {{ weights.crowding }}·Crowding, each a percentile across this run's niches over the {{ top_n }} most favourited listings per niche (from the top search results for each seed).
 
 - Demand: the average of {% if blended %}three{% else %}two{% endif %} percentiles: favourite momentum (each listing's favourites divided by its age in months, at least 1, summed){% if blended %}, reviews in the last {{ window }} days, and favourites gained since the previous run{% else %} and reviews in the last {{ window }} days{% endif %}. Niches below the {{ (floor * 100)|int }}th demand percentile are dropped.
 - Entry: share of favourite momentum on listings under {{ new_days }} days old.

@@ -93,9 +93,13 @@ later runs can compute real deltas between runs.
 
 ## Scoring
 
-All components are computed over the **top 20 search results per niche**, then converted to
+All components are computed over the **20 most favourited listings per niche** (from up to 300 search
+results per seed), then converted to
 percentiles (0–1) across all niches in the run. Only `download` listings whose `language` matches
 `languages` in `etsy.yaml` (default `[en]`, prefix match, missing language kept) are scored.
+Search order (`sort_on=score`) is relevance, not popularity: on the first live run a niche's top 20 by search
+position had 56 favourites in total against 2,891 for its 20 most favourited, which understated demand.
+Ties fall back to best search rank, then `listing_id`.
 
 Listing reviews proved too sparse to carry the score on their own (first live run: about 80% of
 top listings had no review in the last year), so favourites are the main demand signal.

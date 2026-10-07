@@ -141,3 +141,27 @@ def test_fake_listings_are_mostly_english():
     languages = [r["language"] for r in results]
     assert set(languages) == {"en-US", "de"}
     assert 0.02 <= languages.count("de") / len(languages) <= 0.15
+
+
+def test_collect_reviews_the_most_favourited_downloads_not_search_order(con):
+    def listing(lid, favs, **over):
+        return {"listing_id": lid, "shop_id": lid, "listing_type": "download", "num_favorers": favs, **over}
+
+    results = [listing(1, 0), listing(2, 1), listing(3, 5), listing(4, 900, listing_type="physical"),
+               listing(5, 800, language="de"), listing(6, 50), listing(7, 50), listing(8, 300),
+               listing(9, 40)]
+
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/listings/active"):
+            return httpx.Response(200, json={"count": len(results), "results": results})
+        if path.endswith("/reviews"):
+            return httpx.Response(200, json={"count": 0, "results": []})
+        return httpx.Response(200, json={"shop_id": int(path.rsplit("/", 1)[1])})
+
+    seeds = Seeds(terms=("budget spreadsheet",), file_hash="h")
+    collect(client_for(con, httpx.MockTransport(handler)), seeds, replace(SETTINGS, languages=("en",)))
+    reviewed = {int(e.split("/")[2]) for e in endpoints(con) if e.endswith("/reviews")}
+    assert reviewed == {8, 6, 7}  # 8 (300), then 6 and 7 tie on 50 so search position decides
+    shops = {int(e.split("/")[2]) for e in endpoints(con) if e.startswith("/shops/")}
+    assert shops == {8, 6, 7}

@@ -78,7 +78,7 @@ ul { margin:4px 0 8px; padding-left:20px; }
 {% if dropped %}<ul>{% for d in dropped %}<li>{{ d.name }} — {{ d.reason }}</li>{% endfor %}</ul>{% else %}<p class="muted">None.</p>{% endif %}
 
 <h2>Method</h2>
-<p>score = {{ weights.demand }}·Demand + {{ weights.entry }}·Entry + {{ weights.gap }}·Gap + {{ weights.price }}·Price − {{ weights.crowding }}·Crowding. Each component is a percentile across this run's niches, computed over the top {{ top_n }} search results per niche.</p>
+<p>score = {{ weights.demand }}·Demand + {{ weights.entry }}·Entry + {{ weights.gap }}·Gap + {{ weights.price }}·Price − {{ weights.crowding }}·Crowding. Each component is a percentile across this run's niches, computed over the {{ top_n }} most favourited listings per niche (from the top search results for each seed).</p>
 <ul>
 <li>Demand: the average of {% if blended %}three{% else %}two{% endif %} percentiles: favourite momentum (each listing's favourites divided by its age in months, at least 1, summed){% if blended %}, reviews in the last {{ window }} days, and favourites gained since the previous run{% else %} and reviews in the last {{ window }} days{% endif %}. Niches below the {{ (floor * 100)|int }}th demand percentile are dropped.</li>
 <li>Entry: share of favourite momentum on listings under {{ new_days }} days old.</li>

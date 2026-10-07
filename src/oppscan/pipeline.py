@@ -24,7 +24,7 @@ from oppscan.scoring import sanity_check, save_scores, score_niches
 from oppscan.staging import stage_run
 
 RESUMABLE = ("paused", "failed", "running")  # running = interrupted (e.g. Ctrl-C)
-RESCORABLE = ("complete", "partial")
+RESCORABLE = ("complete", "partial", "failed")
 ETSY_FAILURES_RE = re.compile(r"^\d+ Etsy request\(s\) failed; first: ")
 
 
@@ -72,7 +72,7 @@ def run_pipeline(paths: Paths, *, transport: httpx.BaseTransport | None = None,
 
 
 def rescore_pipeline(paths: Paths, run_id: str, *, llm: LLMClient | None = None) -> RunResult:
-    """Re-run everything after collection for a finished run, from its stored API responses."""
+    """Re-run everything after collection for a complete, partial or failed run, from its stored API responses."""
     con = db.connect(paths.db)
     try:
         return _rescore(con, paths, run_id, llm)
@@ -125,8 +125,8 @@ def _rescore(con, paths, run_id, llm) -> RunResult:
     if existing is None:
         raise ValueError(f"unknown run {run_id}")
     if existing["status"] not in RESCORABLE:
-        raise ValueError(f"run {run_id} is {existing['status']}; only a complete or partial run can be "
-                         "re-scored (resume it with: oppscan run --resume)")
+        raise ValueError(f"run {run_id} is {existing['status']}; only a complete, partial or failed run "
+                         "can be re-scored (resume it with: oppscan run --resume)")
     if existing["seeds_hash"] != s.seeds.file_hash:
         raise ValueError(f"run {run_id} used a different seeds file than {paths.config_dir / 'seeds.yaml'}; "
                          "pass the --config-dir it ran with")

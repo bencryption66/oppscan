@@ -21,7 +21,7 @@ uv sync
 uv run oppscan run --fixtures     # offline run on fake data (no keys needed)
 uv run oppscan run                # live run -> reports/<run_id>.html and .md
 uv run oppscan run --resume <id>  # continue a paused, failed or interrupted run
-uv run oppscan rescore <id>       # re-score a complete or partial run; no Etsy calls
+uv run oppscan rescore <id>       # re-score a complete, partial or failed run; no Etsy calls
 ```
 
 A paused run (Etsy daily quota or persistent rate limiting) exits with code 2 and prints the
@@ -33,8 +33,10 @@ summary, report) from the API responses already stored for that run, so changes 
 `languages` or the report apply to an old run without spending Etsy quota. It keeps the run's
 original date, uses the Anthropic API (cached calls are reused), and needs the same `--config-dir`
 the run used, since niches come from that seeds file. Raw responses are archived once a run is
-more than 8 runs old; such a run can't be re-scored. A paused, failed or unknown run prints
-`error: ...` and exits with 1.
+more than 8 runs old; such a run can't be re-scored. A failed run can be re-scored to recover
+it after fixing a post-collection error (if it failed during collection, `--resume` it instead so
+the missing responses are fetched). A paused, running or unknown run prints `error: ...` and exits
+with 1.
 
 For the first live run, use the smaller profile in `config/first-run/` (25 seeds, one review page
 per listing, roughly 1,100 Etsy calls). It shares `scoring.yaml` and `fx.yaml` with `config/` via

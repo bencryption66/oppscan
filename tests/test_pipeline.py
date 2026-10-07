@@ -264,6 +264,11 @@ def test_rescore_rejects_paused_unknown_and_reseeded_runs(tmp_path):
         rescore_pipeline(paths, paused.run_id, llm=FakeLLM())
     with pytest.raises(ValueError, match="unknown run nope"):
         rescore_pipeline(paths, "nope", llm=FakeLLM())
+    con = duckdb.connect(str(paths.db))
+    con.execute("UPDATE runs SET status = 'running' WHERE run_id = ?", [paused.run_id])
+    con.close()
+    with pytest.raises(ValueError, match=f"{paused.run_id}.*running"):
+        rescore_pipeline(paths, paused.run_id, llm=FakeLLM())
 
     setup_config(tmp_path)
     done = run(paths, T2)
@@ -324,3 +329,23 @@ def test_top_listings_without_fetched_reviews_make_run_partial(tmp_path):
     missing = len(tops) - len(reviewed) + 1
     assert rescored.reasons == [f"{missing} of {len(tops)} top listings have no fetched reviews (filtered or "
                                 "ranked after collection); review-based demand understates them"]
+
+
+def test_rescore_recovers_a_failed_run(tmp_path, monkeypatch):
+    paths = setup_config(tmp_path)
+
+    class Broken:
+        def call(self, task, payload):
+            raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        run_pipeline(paths, transport=fake_transport(T1), llm=Broken(), api_key="fixture", now=T1, qps=1e6)
+    con = duckdb.connect(str(paths.db), read_only=True)
+    run_id, status = con.execute("SELECT run_id, status FROM runs").fetchone()
+    con.close()
+    assert status == "failed"
+
+    forbid_etsy(monkeypatch)
+    rescored = rescore_pipeline(paths, run_id, llm=FakeLLM())
+    assert rescored.status == "complete", rescored.reasons
+    assert rescored.html.exists()

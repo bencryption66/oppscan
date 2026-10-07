@@ -25,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     run = sub.add_parser("run", help="collect, score and write a report")
     run.add_argument("--resume", metavar="RUN_ID", help="resume a paused, failed or interrupted run")
     _add_common(run)
-    rescore = sub.add_parser("rescore", help="re-score a complete or partial run from its stored data "
+    rescore = sub.add_parser("rescore", help="re-score a complete, partial or failed run from its stored data "
                                              "(no Etsy calls) and rewrite its report")
     rescore.add_argument("run_id", metavar="RUN_ID")
     _add_common(rescore)

@@ -117,7 +117,7 @@ creation date counts as one month.
 - **Demand floor:** niches below the 25th percentile of Demand are dropped (`dropped_reason = 'demand_floor'`).
 - **Confidence:** `high` if ≥ 8 of the top listings have ≥ 5 favourites (`high_confidence.min_listings` and `min_favourites` in `scoring.yaml`); otherwise `low`. All `high` niches rank above all `low` niches.
 - **Missing complaint data:** Gap is set to the median percentile (0.5) and the niche is flagged.
-- **Re-scoring:** `oppscan rescore <run_id>` re-runs everything after collection for a complete or partial run from its stored `raw_api` rows, with no Etsy calls, so scoring changes can be applied to past runs.
+- **Re-scoring:** `oppscan rescore <run_id>` re-runs everything after collection for a complete, partial or failed run from its stored `raw_api` rows, with no Etsy calls, so scoring changes can be applied to past runs.
 - **Sanity check:** `scoring.yaml` lists known-big niches (e.g. "monthly budget spreadsheet"). If any lands below the 50th percentile of Demand, the run is flagged `suspect` in the report header.
 
 ## Report

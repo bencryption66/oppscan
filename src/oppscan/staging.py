@@ -34,6 +34,17 @@ def price_usd(price: dict | None, per_usd: dict[str, float]) -> float | None:
     return round(amount / divisor / rate, 2)
 
 
+def unsearched_seeds(con, run_id: str, seeds: tuple[str, ...]) -> int:
+    """How many of `seeds` have no first (offset 0) search page stored for this run."""
+    searched = set()
+    for (request_key,) in con.execute(
+            "SELECT request_key FROM raw_api WHERE run_id = ? AND endpoint = '/listings/active'", [run_id]).fetchall():
+        params = json.loads(request_key)
+        if int(params["offset"]) == 0:
+            searched.add(params["keywords"])
+    return sum(1 for seed in seeds if seed not in searched)
+
+
 def stage_run(con, run_id: str, per_usd: dict[str, float], languages: tuple[str, ...] = ()) -> None:
     for table in STAGED_TABLES:
         con.execute(f"DELETE FROM {table} WHERE run_id = ?", [run_id])

@@ -349,3 +349,18 @@ def test_rescore_recovers_a_failed_run(tmp_path, monkeypatch):
     rescored = rescore_pipeline(paths, run_id, llm=FakeLLM())
     assert rescored.status == "complete", rescored.reasons
     assert rescored.html.exists()
+
+
+def test_unsearched_seeds_make_rescored_run_partial(tmp_path):
+    paths = setup_config(tmp_path)
+    first = run(paths, T1)
+    assert first.status == "complete", first.reasons
+    con = duckdb.connect(str(paths.db))
+    con.execute("DELETE FROM raw_api WHERE run_id = ? AND endpoint = '/listings/active' "
+                "AND json_extract_string(request_key, '$.keywords') = 'monthly budget spreadsheet'",
+                [first.run_id])
+    con.close()
+
+    rescored = rescore_pipeline(paths, first.run_id, llm=FakeLLM())
+    assert rescored.status == "partial"
+    assert rescored.reasons == ["1 of 9 seeds were never searched (collection incomplete)"]

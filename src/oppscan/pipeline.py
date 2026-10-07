@@ -21,7 +21,7 @@ from oppscan.llm import AnthropicLLM, LLMClient
 from oppscan.metrics import compute_metrics, unreviewed_top_listings
 from oppscan.report import render_report
 from oppscan.scoring import sanity_check, save_scores, score_niches
-from oppscan.staging import stage_run
+from oppscan.staging import stage_run, unsearched_seeds
 
 RESUMABLE = ("paused", "failed", "running")  # running = interrupted (e.g. Ctrl-C)
 RESCORABLE = ("complete", "partial", "failed")
@@ -160,6 +160,9 @@ def _analyse(con, paths: Paths, s: Settings, llm: LLMClient, run_id: str, as_of:
     for r in reasons:
         db.add_reason(con, run_id, r)
     cfg = s.cfg
+    if unsearched := unsearched_seeds(con, run_id, s.seeds.terms):
+        reasons.append(f"{unsearched} of {len(s.seeds.terms)} seeds were never searched (collection incomplete)")
+        db.add_reason(con, run_id, reasons[-1])
     stage_run(con, run_id, s.fx, s.etsy.languages)
     cluster(con, run_id, s.seeds, llm)
     complaint_reasons = mine_complaints(con, run_id, llm, cfg.top_n_per_niche)

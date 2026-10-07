@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from oppscan.staging import price_usd, review_hash, stage_run
+from oppscan.staging import price_usd, review_hash, stage_run, unsearched_seeds
 
 FX = {"USD": 1.0, "EUR": 0.88511}
 
@@ -117,3 +117,11 @@ def test_empty_language_list_keeps_every_language(con):
     search(con, "r1", "budget", 0, [listing(1, language="de"), listing(2, language="fr")])
     stage_run(con, "r1", FX, languages=())
     assert con.execute("SELECT count(*) FROM listing_snapshots").fetchone()[0] == 2
+
+
+def test_unsearched_seeds_counts_seeds_without_a_first_search_page(con):
+    search(con, "r1", "a", 0, [listing(1)])
+    search(con, "r1", "b", 100, [listing(2)])  # only a later page
+    search(con, "r0", "c", 0, [listing(3)])  # another run
+    assert unsearched_seeds(con, "r1", ("a", "b", "c")) == 2
+    assert unsearched_seeds(con, "r1", ("a",)) == 0

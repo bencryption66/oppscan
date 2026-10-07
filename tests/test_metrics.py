@@ -34,9 +34,26 @@ def build(con):
     con.execute("INSERT INTO seed_counts VALUES ('r1', 's1', 500), ('r1', 's2', 800)")
 
 
-def test_top_listings_orders_by_best_rank_and_limits(con):
+def test_top_listings_orders_by_favourites_then_rank_and_limits(con):
     build(con)
-    assert top_listings(con, "r1", 4) == {"a": [1, 3, 2, 4]}
+    # 2 and 1 have favourites (25, 15); 3 and 4 tie on none, so best search rank decides; 5 is cut.
+    assert top_listings(con, "r1", 4) == {"a": [2, 1, 3, 4]}
+
+
+def test_top_listings_prefers_favourited_over_best_search_rank(con):
+    add_niche(con, "a", ["s1"])
+    for lid, rank, favs in [(1, 1, 0), (2, 2, 1), (3, 3, 500), (4, 4, 500), (5, 5, 90)]:
+        add_listing(con, "r1", lid, seed="s1", rank=rank, favs=favs)
+        assign(con, "r1", lid, "a")
+    assert top_listings(con, "r1", 3) == {"a": [3, 4, 5]}  # 3/4 tie on favourites, rank breaks it
+
+
+def test_top_listings_ties_fall_back_to_rank_then_listing_id(con):
+    add_niche(con, "a", ["s1", "s2"])
+    for lid, seed, rank in [(9, "s1", 5), (7, "s1", 2), (8, "s2", 2), (6, "s2", 7)]:
+        add_listing(con, "r1", lid, seed=seed, rank=rank, favs=10)
+        assign(con, "r1", lid, "a")
+    assert top_listings(con, "r1", 4) == {"a": [7, 8, 9, 6]}
 
 
 def test_compute_metrics(con):

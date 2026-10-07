@@ -1,4 +1,4 @@
-"""Raw per-niche metrics for one run, computed over each niche's top search results."""
+"""Raw per-niche metrics for one run, computed over each niche's most-favourited listings."""
 from __future__ import annotations
 
 from collections import Counter
@@ -37,17 +37,35 @@ def _share(part: float, total: float) -> float:
     return part / total if total else 0.0
 
 
+TOP_LISTINGS_RULE = """\
+"Top listings" are the most favourited, not Etsy's search order (which is relevance, not popularity):
+order by num_favorers descending, then best (lowest) search rank, then listing_id.
+Implemented twice, so keep both in step: rank_by_favourites() for the collector's dicts, and the
+ORDER BY in top_listings() for the database."""
+
+
+def rank_by_favourites(listings: list[dict]) -> list[dict]:
+    """TOP_LISTINGS_RULE over search-result dicts; `listings` is in search order, which is the rank.
+
+    The sort is stable, so ties keep their search position. Keep in step with top_listings() below.
+    """
+    return sorted(listings, key=lambda l: -(l.get("num_favorers") or 0))
+
+
 def top_listings(con, run_id: str, top_n: int) -> dict[str, list[int]]:
+    """The top_n listings per niche under TOP_LISTINGS_RULE (SQL twin of rank_by_favourites())."""
     rows = con.execute(
         """
         SELECT niche_id, listing_id FROM (
             SELECT ln.niche_id, h.listing_id,
                    ROW_NUMBER() OVER (PARTITION BY ln.niche_id
-                                      ORDER BY MIN(h.search_rank), h.listing_id) AS rn
+                                      ORDER BY COALESCE(s.num_favorers, 0) DESC,
+                                               MIN(h.search_rank), h.listing_id) AS rn
             FROM listing_niche ln
             JOIN search_hits h ON h.run_id = ln.run_id AND h.listing_id = ln.listing_id
+            LEFT JOIN listing_snapshots s ON s.run_id = ln.run_id AND s.listing_id = ln.listing_id
             WHERE ln.run_id = ?
-            GROUP BY ln.niche_id, h.listing_id
+            GROUP BY ln.niche_id, h.listing_id, s.num_favorers
         ) WHERE rn <= ? ORDER BY niche_id, rn
         """,
         [run_id, top_n],

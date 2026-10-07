@@ -11,6 +11,7 @@ from oppscan import db
 from oppscan.cli import main
 from oppscan.fake_etsy import fake_transport
 from oppscan.fake_llm import FakeLLM
+from oppscan.metrics import top_listings
 from oppscan.pipeline import Paths, rescore_pipeline, run_pipeline
 
 REPO = Path(__file__).resolve().parents[1]
@@ -32,7 +33,9 @@ SEEDS = """seeds:
 def setup_config(tmp_path, quota=100_000):
     config = tmp_path / "config"
     config.mkdir(exist_ok=True)
-    shutil.copy(REPO / "config" / "scoring.yaml", config / "scoring.yaml")
+    # Score the same top 5 per niche whose reviews are fetched (reviews_for_top), keeping the test fast.
+    scoring = (REPO / "config" / "scoring.yaml").read_text()
+    (config / "scoring.yaml").write_text(scoring.replace("top_n_per_niche: 20", "top_n_per_niche: 5"))
     shutil.copy(REPO / "config" / "fx.yaml", config / "fx.yaml")
     (config / "seeds.yaml").write_text(SEEDS)
     (config / "etsy.yaml").write_text(
@@ -301,3 +304,23 @@ def test_cli_rescore(tmp_path, capsys, monkeypatch):
     assert f"run {run_id}: complete" in out
     assert main(["rescore", "--fixtures", "nope", *dirs]) == 1
     assert "error: unknown run nope" in capsys.readouterr().err
+
+
+def test_top_listings_without_fetched_reviews_make_run_partial(tmp_path):
+    paths = setup_config(tmp_path)
+    first = run(paths, T1)
+    assert first.status == "complete", first.reasons
+    con = duckdb.connect(str(paths.db))
+    tops = sorted({lid for lids in top_listings(con, first.run_id, 5).values() for lid in lids})
+    reviewed = [lid for lid in tops if con.execute(
+        "SELECT count(*) FROM raw_api WHERE run_id = ? AND endpoint = ?",
+        [first.run_id, f"/listings/{lid}/reviews"]).fetchone()[0]]
+    con.execute("DELETE FROM raw_api WHERE run_id = ? AND endpoint = ?",
+                [first.run_id, f"/listings/{reviewed[0]}/reviews"])
+    con.close()
+
+    rescored = rescore_pipeline(paths, first.run_id, llm=FakeLLM())
+    assert rescored.status == "partial"
+    missing = len(tops) - len(reviewed) + 1
+    assert rescored.reasons == [f"{missing} of {len(tops)} top listings have no fetched reviews (filtered or "
+                                "ranked after collection); review-based demand understates them"]

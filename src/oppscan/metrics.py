@@ -58,6 +58,17 @@ def top_listings(con, run_id: str, top_n: int) -> dict[str, list[int]]:
     return out
 
 
+def unreviewed_top_listings(con, run_id: str, top_n: int) -> tuple[int, int]:
+    """(top listings with no fetched reviews in raw_api for this run, all top listings)."""
+    ids = sorted({lid for lids in top_listings(con, run_id, top_n).values() for lid in lids})
+    if not ids:
+        return 0, 0
+    fetched = {int(e.split("/")[2]) for (e,) in con.execute(
+        "SELECT DISTINCT endpoint FROM raw_api WHERE run_id = ? AND endpoint LIKE '/listings/%/reviews'",
+        [run_id]).fetchall()}
+    return sum(1 for lid in ids if lid not in fetched), len(ids)
+
+
 def compute_metrics(con, run_id: str, as_of: datetime, cfg: ScoringConfig,
                     prev_run_id: str | None) -> list[NicheMetrics]:
     tops = top_listings(con, run_id, cfg.top_n_per_niche)

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import pytest
 from helpers import add_listing, add_niche, add_review, assign, make_cfg
 
-from oppscan.metrics import compute_metrics, top_listings
+from oppscan.metrics import compute_metrics, top_listings, unreviewed_top_listings
 
 AS_OF = datetime(2026, 10, 1)
 RECENT = datetime(2026, 9, 20)
@@ -123,3 +123,11 @@ def test_engaged_listings_uses_min_favourites(con):
     build_favs(con)
     f, _ = compute_metrics(con, "r1", AS_OF, make_cfg(min_favourites=50), None)
     assert f.engaged_listings == 2  # 50 and 100
+
+
+def test_unreviewed_top_listings_counts_top_listings_without_fetched_reviews(con):
+    build(con)  # top 4 of niche a: listings 1, 3, 2, 4
+    for lid in (1, 2, 5):
+        con.execute("INSERT INTO raw_api VALUES ('r1', ?, '{}', ?, '{}')", [f"/listings/{lid}/reviews", AS_OF])
+    con.execute("INSERT INTO raw_api VALUES ('r0', '/listings/3/reviews', '{}', ?, '{}')", [AS_OF])  # other run
+    assert unreviewed_top_listings(con, "r1", 4) == (2, 4)  # listings 3 and 4

@@ -18,7 +18,7 @@ from oppscan.complaints import mine_complaints
 from oppscan.config import EtsySettings, ScoringConfig, Seeds, load_etsy, load_fx, load_scoring, load_seeds
 from oppscan.etsy import EtsyClient, QuotaExhausted
 from oppscan.llm import AnthropicLLM, LLMClient
-from oppscan.metrics import compute_metrics
+from oppscan.metrics import compute_metrics, unreviewed_top_listings
 from oppscan.report import render_report
 from oppscan.scoring import sanity_check, save_scores, score_niches
 from oppscan.staging import stage_run
@@ -166,6 +166,11 @@ def _analyse(con, paths: Paths, s: Settings, llm: LLMClient, run_id: str, as_of:
     for r in complaint_reasons:
         db.add_reason(con, run_id, r)
     reasons += complaint_reasons
+    missing, top = unreviewed_top_listings(con, run_id, cfg.top_n_per_niche)
+    if missing:
+        reasons.append(f"{missing} of {top} top listings have no fetched reviews (filtered or ranked after "
+                       "collection); review-based demand understates them")
+        db.add_reason(con, run_id, reasons[-1])
     scores = score_niches(compute_metrics(con, run_id, as_of, cfg, db.previous_run(con, run_id)), cfg)
     save_scores(con, run_id, scores)
 

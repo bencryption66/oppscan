@@ -21,11 +21,20 @@ uv sync
 uv run oppscan run --fixtures     # offline run on fake data (no keys needed)
 uv run oppscan run                # live run -> reports/<run_id>.html and .md
 uv run oppscan run --resume <id>  # continue a paused, failed or interrupted run
+uv run oppscan rescore <id>       # re-score a complete or partial run; no Etsy calls
 ```
 
 A paused run (Etsy daily quota or persistent rate limiting) exits with code 2 and prints the
 `--resume` command. `--resume` re-uses the responses already fetched, so it spends no quota on
 them. Resuming a complete or partial run, or an unknown id, prints `error: ...` and exits with 1.
+
+`rescore` re-runs everything after collection (staging, clustering, complaints, scoring, briefs,
+summary, report) from the API responses already stored for that run, so changes to scoring,
+`languages` or the report apply to an old run without spending Etsy quota. It keeps the run's
+original date, uses the Anthropic API (cached calls are reused), and needs the same `--config-dir`
+the run used, since niches come from that seeds file. Raw responses are archived once a run is
+more than 8 runs old; such a run can't be re-scored. A paused, failed or unknown run prints
+`error: ...` and exits with 1.
 
 For the first live run, use the smaller profile in `config/first-run/` (25 seeds, one review page
 per listing, roughly 1,100 Etsy calls). It shares `scoring.yaml` and `fx.yaml` with `config/` via
@@ -39,6 +48,11 @@ Edit `config/seeds.yaml` to change what's searched (this re-clusters niches on t
 `config/scoring.yaml` to change weights or thresholds. `config/fx.yaml` holds the static exchange
 rates (units per 1 USD) used to convert non-USD listing prices; update it by hand now and then. A
 listing in a currency missing from the table is kept with an unknown price.
+
+`languages` in `etsy.yaml` (default `[en]`) keeps only listings whose Etsy `language` starts with
+one of the listed prefixes, so `en` keeps `en-US` and `en-GB`. A listing with no language is kept,
+and an empty list keeps every language. The same filter picks the listings whose reviews and shops
+are fetched and the listings that are scored.
 
 ## Live checks
 

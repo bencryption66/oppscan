@@ -74,7 +74,7 @@ later runs can compute real deltas between runs.
 | table | grain | columns |
 |---|---|---|
 | `search_hits` | run × seed × listing | search_rank |
-| `listing_snapshots` | run × listing | title, tags[], price_usd, num_favorers, views, created_at, shop_id, listing_type |
+| `listing_snapshots` | run × listing | title, tags[], price_usd, num_favorers, views, created_at, shop_id, listing_type, url, language |
 | `shop_snapshots` | run × shop | transaction_sold_count, review_count, review_average, created_at |
 | `reviews` | review | review_hash = hash(listing_id, created_at, text); listing_id, rating, text, created_at. Deduplicated across runs. |
 
@@ -94,22 +94,30 @@ later runs can compute real deltas between runs.
 ## Scoring
 
 All components are computed over the **top 20 search results per niche**, then converted to
-percentiles (0–1) across all niches in the run.
+percentiles (0–1) across all niches in the run. Only `download` listings whose `language` matches
+`languages` in `etsy.yaml` (default `[en]`, prefix match, missing language kept) are scored.
+
+Listing reviews proved too sparse to carry the score on their own (first live run: about 80% of
+top listings had no review in the last year), so favourites are the main demand signal.
+**Favourite momentum** (`fav_rate`) is the sum over the top listings of
+`num_favorers / age_months`, where `age_months = max(1, days since created / 30.44)`; an unknown
+creation date counts as one month.
 
 | Component | Measure | Weight |
 |---|---|---|
-| Demand | Reviews dated in the last 90 days, summed. From run 2: 50/50 blend with favourites gained since the previous run. | +0.35 |
-| Entry | Share of 90-day reviews that went to listings created < 12 months ago | +0.25 |
+| Demand | Mean of the percentiles of `fav_rate` and of reviews dated in the last 90 days. From run 2, when every niche has it, the percentile of favourites gained since the previous run is a third term. | +0.35 |
+| Entry | Share of `fav_rate` from listings created < 12 months ago (0 when `fav_rate` is 0) | +0.25 |
 | Gap | `fixable_by_product` complaint mentions per 100 reviews | +0.20 |
 | Price | Median price (USD) | +0.10 |
-| Crowding | Average of the percentile of total listing count (API `count`) and the percentile of the top-3 shops' share of 90-day reviews | −0.10 |
+| Crowding | Average of the percentile of total listing count (API `count`) and the percentile of the top-3 shops' share of `fav_rate` | −0.10 |
 
 `score = 0.35·D + 0.25·E + 0.20·G + 0.10·P − 0.10·C`
 
 **Guard rails**
 - **Demand floor:** niches below the 25th percentile of Demand are dropped (`dropped_reason = 'demand_floor'`).
-- **Confidence:** `high` if ≥ 30 reviews in the last 90 days across ≥ 8 listings; otherwise `low`. All `high` niches rank above all `low` niches.
+- **Confidence:** `high` if ≥ 8 of the top listings have ≥ 5 favourites (`high_confidence.min_listings` and `min_favourites` in `scoring.yaml`); otherwise `low`. All `high` niches rank above all `low` niches.
 - **Missing complaint data:** Gap is set to the median percentile (0.5) and the niche is flagged.
+- **Re-scoring:** `oppscan rescore <run_id>` re-runs everything after collection for a complete or partial run from its stored `raw_api` rows, with no Etsy calls, so scoring changes can be applied to past runs.
 - **Sanity check:** `scoring.yaml` lists known-big niches (e.g. "monthly budget spreadsheet"). If any lands below the 50th percentile of Demand, the run is flagged `suspect` in the report header.
 
 ## Report

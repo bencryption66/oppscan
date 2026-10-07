@@ -38,6 +38,9 @@ it after fixing a post-collection error (if it failed during collection, `--resu
 the missing responses are fetched). A paused, running or unknown run prints `error: ...` and exits
 with 1.
 
+Re-scoring an older run doesn't refresh later runs' favourite deltas (they compare against its
+listings), so when re-scoring several runs, finish with the newest: go from oldest to newest.
+
 For the first live run, use the smaller profile in `config/first-run/` (25 seeds, one review page
 per listing, roughly 1,100 Etsy calls). It shares `scoring.yaml` and `fx.yaml` with `config/` via
 symlinks:

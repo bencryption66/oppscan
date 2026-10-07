@@ -25,7 +25,7 @@ Status: **{{ run.status }}** · sanity: **{{ "suspect" if run.suspect else "ok" 
 {% for k in c.complaints %}- {{ k.theme }} ({{ k.mentions }} reviews){% for q in k.quotes %} — "{{ q }}"{% endfor %}
 {% endfor %}{% endif %}
 {% if c.competitors %}**Strongest competitors**
-{% for k in c.competitors %}- [{{ k.title }}]({{ k.url }}) · {{ "$" ~ "%.2f"|format(k.price_usd) if k.price_usd is not none else "–" }} · {{ k.reviews_90d }} reviews in 90 days
+{% for k in c.competitors %}- [{{ k.title }}]({{ k.url }}) · {{ "$" ~ "%.2f"|format(k.price_usd) if k.price_usd is not none else "–" }} · {{ "%.1f"|format(k.fav_per_month) }} favourites/month · {{ k.reviews_90d }} reviews in 90 days
 {% endfor %}{% endif %}
 {% if c.brief %}**Draft brief**
 - Buyer: {{ c.brief.target_buyer }}

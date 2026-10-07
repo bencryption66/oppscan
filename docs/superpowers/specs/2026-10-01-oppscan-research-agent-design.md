@@ -132,7 +132,7 @@ artifact.
 3. **Top-10 niche cards:**
    - one sentence per component explaining the rank;
    - top 3 fixable complaints with short quotes;
-   - the 3 strongest competitor listings (title, price, 90-day reviews, link);
+   - the 3 strongest competitor listings by favourites per month, then 90-day reviews (title, price, favourites/month, 90-day reviews, link);
    - draft brief: target buyer, core features, what to do better than competitors,
      suggested price, title and tag ideas.
 4. **Dropped and borderline:** one line per dropped or low-confidence niche, with the reason.

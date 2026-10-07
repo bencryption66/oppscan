@@ -58,11 +58,29 @@ def test_explain_mentions_each_component():
                         "in the last 90 days, 37 favourites gained since the last run (percentile 80%).")
 
 
-def test_competitors_ordered_by_recent_reviews(con):
+def test_competitors_ordered_by_favourites_per_month(con):
     build(con)
     comps = competitors(con, "r1", "a", AS_OF, CFG)
     assert [c["title"] for c in comps] == ["Best Budget", "Other Budget"]
     assert comps[0]["reviews_90d"] == 3
+    assert comps[0]["fav_per_month"] == round(30 / (1004 / 30.44), 1)  # 1,004 days old -> 0.9
+    con.execute("UPDATE listing_snapshots SET num_favorers = 300 WHERE listing_id = 2")
+    comps = competitors(con, "r1", "a", AS_OF, CFG)
+    assert [c["title"] for c in comps] == ["Other Budget", "Best Budget"]  # 9.1 vs 0.9, despite fewer reviews
+
+
+def test_competitor_ties_break_on_recent_reviews_then_listing_id(con):
+    build(con)
+    con.execute("UPDATE listing_snapshots SET num_favorers = 0")
+    con.execute("UPDATE reviews SET created_at = '2026-09-20' WHERE listing_id = 2")
+    con.execute("INSERT INTO reviews VALUES ('x1', 2, 5, 'a', '2026-09-21', 'r1'), "
+                "('x2', 2, 5, 'b', '2026-09-22', 'r1'), ('x3', 2, 5, 'c', '2026-09-23', 'r1')")
+    assert [c["title"] for c in competitors(con, "r1", "a", AS_OF, CFG)] == ["Other Budget", "Best Budget"]
+    con.execute("DELETE FROM reviews")
+    con.execute("UPDATE listing_snapshots SET listing_id = 9 WHERE listing_id = 1")
+    con.execute("UPDATE listing_niche SET listing_id = 9 WHERE listing_id = 1")
+    con.execute("UPDATE search_hits SET listing_id = 9 WHERE listing_id = 1")
+    assert [c["title"] for c in competitors(con, "r1", "a", AS_OF, CFG)] == ["Other Budget", "Best Budget"]
 
 
 def test_briefs_summary_and_render(con, tmp_path):
@@ -75,6 +93,7 @@ def test_briefs_summary_and_render(con, tmp_path):
     assert brief_payload["metrics"]["price_min"] == 8.0
     assert brief_payload["metrics"]["engaged_listings"] == 1
     assert brief_payload["metrics"]["fav_rate"] > 0
+    assert brief_payload["competitors"][0]["fav_per_month"] == 0.9
 
     html_path, md_path = render_report(con, "r1", CFG, tmp_path)
     html = html_path.read_text()
@@ -96,5 +115,5 @@ def test_competitor_with_unknown_price_renders_dash(con, tmp_path):
     con.execute("UPDATE listing_snapshots SET price_usd = NULL WHERE listing_id = 1")
     assert write_briefs(con, "r1", FakeLLM(), CFG, AS_OF) == []
     html_path, md_path = render_report(con, "r1", CFG, tmp_path)
-    assert " · – · 3 reviews in 90 days" in html_path.read_text()
-    assert " · – · 3 reviews in 90 days" in md_path.read_text()
+    assert " · – · 0.9 favourites/month · 3 reviews in 90 days" in html_path.read_text()
+    assert " · – · 0.9 favourites/month · 3 reviews in 90 days" in md_path.read_text()

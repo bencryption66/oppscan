@@ -28,8 +28,8 @@ def rank_change(current: int | None, previous: int | None) -> str:
 
 
 def explain(row: dict) -> list[str]:
-    demand = (f"Demand: {row['reviews_90d']} reviews in the last 90 days across "
-              f"{row['active_listings']} listings")
+    demand = (f"Demand: {row['fav_rate']:,.0f} favourites per month across the top listings and "
+              f"{row['reviews_90d']} reviews in the last 90 days")
     if row["fav_delta"] is not None:
         demand += f", {row['fav_delta']} favourites gained since the last run"
     if row["gap_missing"]:
@@ -41,12 +41,12 @@ def explain(row: dict) -> list[str]:
              if row["median_price"] is not None else "Price: no price data.")
     return [
         f"{demand} (percentile {row['pct_demand']:.0%}).",
-        f"Entry: {row['entry_share']:.0%} of recent reviews went to listings under a year old "
+        f"Entry: {row['entry_share']:.0%} of favourite momentum is on listings under a year old "
         f"(percentile {row['pct_entry']:.0%}).",
         gap,
         price,
-        f"Crowding: {row['listing_count']:,} competing listings; the top 3 shops take "
-        f"{row['top3_share']:.0%} of recent reviews (percentile {row['pct_crowding']:.0%}, subtracted).",
+        f"Crowding: {row['listing_count']:,} competing listings; the top 3 shops hold "
+        f"{row['top3_share']:.0%} of favourite momentum (percentile {row['pct_crowding']:.0%}, subtracted).",
     ]
 
 
@@ -56,11 +56,11 @@ def _rows(con, sql: str, params: list) -> list[dict]:
     return [dict(zip(columns, r)) for r in cursor.fetchall()]
 
 
-def _drop_reason(row: dict) -> str:
+def _drop_reason(row: dict, min_favourites: int) -> str:
     if row["dropped"]:
         return f"below the demand floor (demand percentile {row['pct_demand']:.0%})"
-    return (f"low confidence: {row['reviews_90d']} reviews in 90 days across "
-            f"{row['active_listings']} listings")
+    return (f"low confidence: only {row['engaged_listings']} of the top listings have "
+            f"{min_favourites}+ favourites")
 
 
 def build_context(con, run_id: str, cfg: ScoringConfig) -> dict:
@@ -99,10 +99,11 @@ def build_context(con, run_id: str, cfg: ScoringConfig) -> dict:
     return {
         "run": run, "prev_run_id": prev, "summary": summary[0] if summary else None,
         "rows": rows, "cards": cards, "counts": counts,
-        "dropped": [{"name": r["name"], "reason": _drop_reason(r)}
+        "dropped": [{"name": r["name"], "reason": _drop_reason(r, cfg.min_favourites)}
                     for r in scored if r["dropped"] or r["confidence"] != "high"],
         "weights": cfg.weights, "top_n": cfg.top_n_per_niche, "window": cfg.review_window_days,
         "new_days": cfg.new_listing_days, "floor": cfg.demand_floor_pct,
+        "min_listings": cfg.high_conf_min_listings, "min_favourites": cfg.min_favourites,
         "blended": bool(scored) and all(r["fav_delta"] is not None for r in scored),
     }
 

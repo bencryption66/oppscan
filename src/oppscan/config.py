@@ -28,8 +28,8 @@ class Weights:
 class ScoringConfig:
     weights: Weights
     demand_floor_pct: float
-    high_conf_min_reviews: int
     high_conf_min_listings: int
+    min_favourites: int
     top_n_per_niche: int
     review_window_days: int
     new_listing_days: int
@@ -45,6 +45,14 @@ class EtsySettings:
     search_depth: int
     reviews_for_top: int
     max_review_pages: int
+    languages: tuple[str, ...] = ()  # listing-language prefixes to keep; empty keeps all
+
+
+def language_ok(language: str | None, languages: tuple[str, ...]) -> bool:
+    """True if a listing in `language` should be kept: no filter, unknown language, or a prefix match."""
+    if not languages or not language:
+        return True
+    return language.lower().startswith(tuple(p.lower() for p in languages))
 
 
 def normalise(term: str) -> str:
@@ -66,8 +74,8 @@ def load_scoring(path: Path) -> ScoringConfig:
     return ScoringConfig(
         weights=Weights(**{k: float(v) for k, v in d["weights"].items()}),
         demand_floor_pct=float(d["demand_floor_pct"]),
-        high_conf_min_reviews=int(hc["min_reviews_90d"]),
         high_conf_min_listings=int(hc["min_listings"]),
+        min_favourites=int(hc.get("min_favourites", 5)),
         top_n_per_niche=int(d["top_n_per_niche"]),
         review_window_days=int(d["review_window_days"]),
         new_listing_days=int(d["new_listing_days"]),
@@ -76,11 +84,14 @@ def load_scoring(path: Path) -> ScoringConfig:
     )
 
 
-def load_etsy(path: Path, api_key: str | None = None) -> EtsySettings:
+def load_etsy(path: Path, api_key: str | None = None, require_key: bool = True) -> EtsySettings:
     d = yaml.safe_load(Path(path).read_text())
     key = api_key if api_key is not None else os.environ.get("ETSY_API_KEY", "")
-    if not key:
+    if not key and require_key:
         raise ValueError("ETSY_API_KEY is not set")
+    languages = d.get("languages", [])
+    if not isinstance(languages, list) or not all(isinstance(x, str) and x.strip() for x in languages):
+        raise ValueError(f"{path}: languages must be a list of non-empty strings, got {languages!r}")
     return EtsySettings(
         api_key=key,
         qps=float(d["qps"]),
@@ -88,6 +99,7 @@ def load_etsy(path: Path, api_key: str | None = None) -> EtsySettings:
         search_depth=int(d["search_depth"]),
         reviews_for_top=int(d["reviews_for_top"]),
         max_review_pages=int(d["max_review_pages"]),
+        languages=tuple(languages),
     )
 
 

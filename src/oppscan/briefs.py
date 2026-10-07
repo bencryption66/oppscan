@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from oppscan import db
 from oppscan.config import ScoringConfig
 from oppscan.llm import LLMClient, LLMOutputError
-from oppscan.metrics import top_listings
+from oppscan.metrics import favourites_per_month, top_listings
 
 
 def competitors(con, run_id: str, niche_id: str, as_of: datetime, cfg: ScoringConfig,
@@ -18,25 +18,28 @@ def competitors(con, run_id: str, niche_id: str, as_of: datetime, cfg: ScoringCo
     window_start = as_of - timedelta(days=cfg.review_window_days)
     rows = con.execute(
         """
-        SELECT l.listing_id, l.title, l.price_usd, l.url,
+        SELECT l.listing_id, l.title, l.price_usd, l.url, l.num_favorers, l.created_at,
                count(r.review_hash) FILTER (WHERE r.created_at > ? AND r.created_at <= ?) AS reviews_90d
         FROM listing_snapshots l
         LEFT JOIN reviews r ON r.listing_id = l.listing_id
         WHERE l.run_id = ? AND list_contains(?::BIGINT[], l.listing_id)
         GROUP BY ALL
-        ORDER BY reviews_90d DESC, l.listing_id
-        LIMIT ?
         """,
-        [window_start, as_of, run_id, lids, n],
+        [window_start, as_of, run_id, lids],
     ).fetchall()
-    return [{"title": t, "price_usd": p, "url": u, "reviews_90d": c} for _, t, p, u, c in rows]
+    ranked = sorted(((favourites_per_month(favs, created, as_of), reviews, lid, title, price, url)
+                     for lid, title, price, url, favs, created, reviews in rows),
+                    key=lambda r: (-r[0], -r[1], r[2]))
+    return [{"title": title, "price_usd": price, "url": url, "fav_per_month": round(rate, 1),
+             "reviews_90d": reviews} for rate, reviews, _, title, price, url in ranked[:n]]
 
 
 def brief_payload(con, run_id: str, niche_id: str, as_of: datetime, cfg: ScoringConfig) -> dict:
     name, description = con.execute(
         "SELECT name, description FROM niches WHERE niche_id = ? AND cluster_version = ?",
         [niche_id, db.cluster_version(con, run_id)]).fetchone()
-    keys = ["reviews_90d", "entry_share", "median_price", "listing_count", "top3_share", "confidence"]
+    keys = ["fav_rate", "engaged_listings", "reviews_90d", "entry_share", "median_price", "listing_count",
+            "top3_share", "confidence"]
     metrics = dict(zip(keys, con.execute(
         f"SELECT {', '.join(keys)} FROM niche_scores WHERE run_id = ? AND niche_id = ?",
         [run_id, niche_id]).fetchone()))

@@ -5,3 +5,4 @@ daily_quota: 5000
 search_depth: 300
 reviews_for_top: 20
 max_review_pages: 1
+languages: [en]         # keep listings whose language starts with one of these; [] keeps all

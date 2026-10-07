@@ -44,8 +44,9 @@ def test_repo_scoring_config_loads():
     assert cfg.weights.demand == 0.35
     assert cfg.weights.crowding == 0.10
     assert cfg.demand_floor_pct == 0.25
-    assert cfg.high_conf_min_reviews == 30
     assert cfg.high_conf_min_listings == 8
+    assert cfg.min_favourites == 5
+    assert not hasattr(cfg, "high_conf_min_reviews")
     assert cfg.top_n_per_niche == 20
     assert cfg.known_big_seeds == ("monthly budget spreadsheet",)
 
@@ -102,3 +103,49 @@ def test_load_fx_rejects_non_positive_rate(tmp_path, rate):
     path.write_text(f"per_usd:\n  USD: 1.0\n  EUR: {rate}\n")
     with pytest.raises(ValueError, match="EUR"):
         load_fx(path)
+
+
+def test_language_ok():
+    from oppscan.config import language_ok
+    assert language_ok("en-US", ("en",))
+    assert language_ok("en-GB", ("EN",))
+    assert not language_ok("de", ("en",))
+    assert language_ok(None, ("en",))
+    assert language_ok("de", ())
+    assert language_ok("fr-CA", ("en", "fr"))
+
+
+def test_repo_etsy_configs_keep_english(monkeypatch):
+    monkeypatch.setenv("ETSY_API_KEY", "abc")
+    for path in (REPO / "config" / "etsy.yaml", REPO / "config" / "first-run" / "etsy.yaml"):
+        assert load_etsy(path).languages == ("en",)
+
+
+def test_load_etsy_languages_default_to_all(tmp_path):
+    path = tmp_path / "etsy.yaml"
+    path.write_text("qps: 5\ndaily_quota: 10\nsearch_depth: 100\nreviews_for_top: 5\nmax_review_pages: 1\n")
+    assert load_etsy(path, api_key="k").languages == ()
+
+
+def test_min_favourites_defaults_to_5(tmp_path):
+    text = (REPO / "config" / "scoring.yaml").read_text()
+    path = tmp_path / "scoring.yaml"
+    kept = [line for line in text.splitlines() if not line.strip().startswith("min_favourites:")]
+    path.write_text("\n".join(kept))
+    assert load_scoring(path).min_favourites == 5
+
+
+@pytest.mark.parametrize("value", ["en", "null", "[en, '']", "[en, 3]", "{en: 1}"])
+def test_load_etsy_rejects_invalid_languages(tmp_path, value):
+    path = tmp_path / "etsy.yaml"
+    path.write_text("qps: 5\ndaily_quota: 10\nsearch_depth: 100\nreviews_for_top: 5\nmax_review_pages: 1\n"
+                    f"languages: {value}\n")
+    with pytest.raises(ValueError, match=f"{path}.*languages"):
+        load_etsy(path, api_key="k")
+
+
+def test_load_etsy_accepts_language_list(tmp_path):
+    path = tmp_path / "etsy.yaml"
+    path.write_text("qps: 5\ndaily_quota: 10\nsearch_depth: 100\nreviews_for_top: 5\nmax_review_pages: 1\n"
+                    "languages: [en, fr]\n")
+    assert load_etsy(path, api_key="k").languages == ("en", "fr")

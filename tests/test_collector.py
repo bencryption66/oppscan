@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from datetime import datetime
 
 import httpx
@@ -99,3 +100,44 @@ def test_collect_reviews_top_download_listings_whatever_the_currency(con):
     assert reviewed == {2, 3, 4}  # reviews_for_top=3; non-USD ranks above USD, physical skipped
     shops = {int(e.split("/")[2]) for e in endpoints(con) if e.startswith("/shops/")}
     assert shops == {2, 3, 4}
+
+
+def language_transport():
+    def listing(lid, **over):
+        return {"listing_id": lid, "shop_id": lid, "listing_type": "download", **over}
+
+    results = [listing(1, language="de"), listing(2, language="en-GB"), listing(3),
+               listing(4, language="fr"), listing(5, language="en-US"), listing(6, language="en")]
+
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/listings/active"):
+            return httpx.Response(200, json={"count": len(results), "results": results})
+        if path.endswith("/reviews"):
+            return httpx.Response(200, json={"count": 0, "results": []})
+        return httpx.Response(200, json={"shop_id": int(path.rsplit("/", 1)[1])})
+
+    return httpx.MockTransport(handler)
+
+
+def reviewed_after_collect(con, languages):
+    seeds = Seeds(terms=("budget spreadsheet",), file_hash="h")
+    collect(client_for(con, language_transport()), seeds, replace(SETTINGS, languages=languages))
+    return {int(e.split("/")[2]) for e in endpoints(con) if e.endswith("/reviews")}
+
+
+def test_collect_skips_listings_in_other_languages(con):
+    assert reviewed_after_collect(con, ("en",)) == {2, 3, 5}  # de and fr skipped; missing language kept
+
+
+def test_collect_with_no_languages_keeps_every_language(con):
+    assert reviewed_after_collect(con, ()) == {1, 2, 3}
+
+
+def test_fake_listings_are_mostly_english():
+    with httpx.Client(transport=fake_transport(T), base_url="https://x/v3/application") as c:
+        results = c.get("/listings/active", params={"keywords": "budget spreadsheet", "limit": 100,
+                                                    "offset": 0}).json()["results"]
+    languages = [r["language"] for r in results]
+    assert set(languages) == {"en-US", "de"}
+    assert 0.02 <= languages.count("de") / len(languages) <= 0.15

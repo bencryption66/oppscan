@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from helpers import add_listing, add_niche, add_review, assign, make_cfg
 
-from oppscan.metrics import compute_metrics, top_listings
+from oppscan.metrics import compute_metrics, top_listings, unreviewed_top_listings
 
 AS_OF = datetime(2026, 10, 1)
 RECENT = datetime(2026, 9, 20)
@@ -45,8 +45,13 @@ def test_compute_metrics(con):
     assert m.niche_id == "a"
     assert m.reviews_90d == 6
     assert m.active_listings == 4
-    assert m.entry_share == pytest.approx(0.5)
-    assert m.top3_share == pytest.approx(5 / 6)
+    # Favourites per month of age: listing 1 is 214 days old with 15 favourites, listing 2 is
+    # 1,004 days old with 25; listings 3 and 4 have none. Only listing 1 is under 365 days old.
+    r1, r2 = 15 / (214 / 30.44), 25 / (1004 / 30.44)
+    assert m.fav_rate == pytest.approx(r1 + r2)
+    assert m.engaged_listings == 2
+    assert m.entry_share == pytest.approx(r1 / (r1 + r2))
+    assert m.top3_share == pytest.approx(1.0)  # only two shops have any favourites
     assert m.median_price == 25.0
     assert m.listing_count == 800
     assert m.fav_delta is None
@@ -82,3 +87,47 @@ def test_median_price_none_when_all_prices_null(con):
     con.execute("UPDATE listing_snapshots SET price_usd = NULL")
     [m] = compute_metrics(con, "r1", AS_OF, CFG, None)
     assert m.median_price is None
+
+
+def build_favs(con):
+    """Ages chosen so age_months is exact: 761 days = 25 months, 1,522 = 50, 2,283 = 75."""
+    add_niche(con, "f", ["s"])
+    specs = [  # listing_id, shop, days old (None = unknown), favourites -> favourites per month
+        (1, 1, 10, 6),       # 10 days floors to 1 month -> 6.0, and it is new
+        (2, 1, 761, 50),     # 50 / 25 -> 2.0
+        (3, 2, None, 4),     # unknown age counts as 1 month -> 4.0, not new
+        (4, 3, 1522, 100),   # 100 / 50 -> 2.0
+        (5, 4, 761, 25),     # 25 / 25 -> 1.0
+        (6, 5, 2283, 0),     # 0.0
+    ]
+    for lid, shop, days, favs in specs:
+        created = None if days is None else AS_OF - timedelta(days=days)
+        add_listing(con, "r1", lid, seed="s", rank=lid, favs=favs, shop_id=shop, created=created)
+        assign(con, "r1", lid, "f")
+    add_niche(con, "z", ["t"])
+    add_listing(con, "r1", 9, seed="t", rank=1, favs=0)
+    assign(con, "r1", 9, "z")
+
+
+def test_favourite_metrics(con):
+    build_favs(con)
+    f, z = compute_metrics(con, "r1", AS_OF, make_cfg(), None)
+    assert f.fav_rate == pytest.approx(15.0)  # 6 + 2 + 4 + 2 + 1 + 0
+    assert f.engaged_listings == 4  # listings 1, 2, 4 and 5 have 5+ favourites
+    assert f.entry_share == pytest.approx(6 / 15)  # only listing 1 is under 365 days old
+    assert f.top3_share == pytest.approx(14 / 15)  # shops 1, 2, 3: 8 + 4 + 2
+    assert (z.fav_rate, z.engaged_listings, z.entry_share, z.top3_share) == (0.0, 0, 0.0, 0.0)
+
+
+def test_engaged_listings_uses_min_favourites(con):
+    build_favs(con)
+    f, _ = compute_metrics(con, "r1", AS_OF, make_cfg(min_favourites=50), None)
+    assert f.engaged_listings == 2  # 50 and 100
+
+
+def test_unreviewed_top_listings_counts_top_listings_without_fetched_reviews(con):
+    build(con)  # top 4 of niche a: listings 1, 3, 2, 4
+    for lid in (1, 2, 5):
+        con.execute("INSERT INTO raw_api VALUES ('r1', ?, '{}', ?, '{}')", [f"/listings/{lid}/reviews", AS_OF])
+    con.execute("INSERT INTO raw_api VALUES ('r0', '/listings/3/reviews', '{}', ?, '{}')", [AS_OF])  # other run
+    assert unreviewed_top_listings(con, "r1", 4) == (2, 4)  # listings 3 and 4

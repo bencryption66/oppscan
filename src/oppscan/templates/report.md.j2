@@ -25,7 +25,7 @@ Status: **{{ run.status }}** · sanity: **{{ "suspect" if run.suspect else "ok" 
 {% for k in c.complaints %}- {{ k.theme }} ({{ k.mentions }} reviews){% for q in k.quotes %} — "{{ q }}"{% endfor %}
 {% endfor %}{% endif %}
 {% if c.competitors %}**Strongest competitors**
-{% for k in c.competitors %}- [{{ k.title }}]({{ k.url }}) · {{ "$" ~ "%.2f"|format(k.price_usd) if k.price_usd is not none else "–" }} · {{ k.reviews_90d }} reviews in 90 days
+{% for k in c.competitors %}- [{{ k.title }}]({{ k.url }}) · {{ "$" ~ "%.2f"|format(k.price_usd) if k.price_usd is not none else "–" }} · {{ "%.1f"|format(k.fav_per_month) }} favourites/month · {{ k.reviews_90d }} reviews in 90 days
 {% endfor %}{% endif %}
 {% if c.brief %}**Draft brief**
 - Buyer: {{ c.brief.target_buyer }}
@@ -46,4 +46,13 @@ None.
 
 ## Method
 
-score = {{ weights.demand }}·Demand + {{ weights.entry }}·Entry + {{ weights.gap }}·Gap + {{ weights.price }}·Price − {{ weights.crowding }}·Crowding, each a percentile across this run's niches over the top {{ top_n }} search results per niche. These are proxies: the report ranks niches against each other and does not estimate sales.
+score = {{ weights.demand }}·Demand + {{ weights.entry }}·Entry + {{ weights.gap }}·Gap + {{ weights.price }}·Price − {{ weights.crowding }}·Crowding, each a percentile across this run's niches over the top {{ top_n }} search results per niche.
+
+- Demand: the average of {% if blended %}three{% else %}two{% endif %} percentiles: favourite momentum (each listing's favourites divided by its age in months, at least 1, summed){% if blended %}, reviews in the last {{ window }} days, and favourites gained since the previous run{% else %} and reviews in the last {{ window }} days{% endif %}. Niches below the {{ (floor * 100)|int }}th demand percentile are dropped.
+- Entry: share of favourite momentum on listings under {{ new_days }} days old.
+- Gap: complaints a better template would fix, per 100 reviews.
+- Price: median listing price (USD).
+- Crowding: total listings for the niche's keywords, and the top 3 shops' share of favourite momentum.
+- Confidence: high when at least {{ min_listings }} of the top listings have {{ min_favourites }}+ favourites; high-confidence niches rank above low-confidence ones.
+
+These are proxies: favourites and reviews are not sales, so the report ranks niches against each other and does not estimate sales.

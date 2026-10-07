@@ -133,3 +133,19 @@ def test_min_favourites_defaults_to_5(tmp_path):
     kept = [line for line in text.splitlines() if not line.strip().startswith("min_favourites:")]
     path.write_text("\n".join(kept))
     assert load_scoring(path).min_favourites == 5
+
+
+@pytest.mark.parametrize("value", ["en", "null", "[en, '']", "[en, 3]", "{en: 1}"])
+def test_load_etsy_rejects_invalid_languages(tmp_path, value):
+    path = tmp_path / "etsy.yaml"
+    path.write_text("qps: 5\ndaily_quota: 10\nsearch_depth: 100\nreviews_for_top: 5\nmax_review_pages: 1\n"
+                    f"languages: {value}\n")
+    with pytest.raises(ValueError, match=f"{path}.*languages"):
+        load_etsy(path, api_key="k")
+
+
+def test_load_etsy_accepts_language_list(tmp_path):
+    path = tmp_path / "etsy.yaml"
+    path.write_text("qps: 5\ndaily_quota: 10\nsearch_depth: 100\nreviews_for_top: 5\nmax_review_pages: 1\n"
+                    "languages: [en, fr]\n")
+    assert load_etsy(path, api_key="k").languages == ("en", "fr")

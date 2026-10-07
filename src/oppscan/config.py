@@ -89,6 +89,9 @@ def load_etsy(path: Path, api_key: str | None = None, require_key: bool = True) 
     key = api_key if api_key is not None else os.environ.get("ETSY_API_KEY", "")
     if not key and require_key:
         raise ValueError("ETSY_API_KEY is not set")
+    languages = d.get("languages", [])
+    if not isinstance(languages, list) or not all(isinstance(x, str) and x.strip() for x in languages):
+        raise ValueError(f"{path}: languages must be a list of non-empty strings, got {languages!r}")
     return EtsySettings(
         api_key=key,
         qps=float(d["qps"]),
@@ -96,7 +99,7 @@ def load_etsy(path: Path, api_key: str | None = None, require_key: bool = True) 
         search_depth=int(d["search_depth"]),
         reviews_for_top=int(d["reviews_for_top"]),
         max_review_pages=int(d["max_review_pages"]),
-        languages=tuple(d.get("languages", [])),
+        languages=tuple(languages),
     )
 
 

@@ -1,8 +1,8 @@
 # First-run profile: same limits as config/etsy.yaml, but one review page per listing
-# to keep a 25-seed run near 1,100 of the 5,000 daily Etsy calls.
+# to keep a 25-seed run near 1,600 of the 5,000 daily Etsy calls.
 qps: 5
 daily_quota: 5000
 search_depth: 300
-reviews_for_top: 20
+reviews_for_top: 30     # headroom over top_n_per_niche (20): a seed's top by favourites can include other niches' listings
 max_review_pages: 1
 languages: [en]         # keep listings whose language starts with one of these; [] keeps all

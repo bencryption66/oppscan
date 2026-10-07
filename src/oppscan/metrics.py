@@ -20,6 +20,21 @@ class NicheMetrics:
     median_price: float | None
     listing_count: int
     top3_share: float
+    fav_rate: float
+    engaged_listings: int
+
+
+DAYS_PER_MONTH = 30.44
+
+
+def favourites_per_month(favs: int, created: datetime | None, as_of: datetime) -> float:
+    """Favourites divided by listing age in months; ages under a month, or unknown, count as 1."""
+    age_months = 1.0 if created is None else max(1.0, (as_of - created).days / DAYS_PER_MONTH)
+    return favs / age_months
+
+
+def _share(part: float, total: float) -> float:
+    return part / total if total else 0.0
 
 
 def top_listings(con, run_id: str, top_n: int) -> dict[str, list[int]]:
@@ -81,11 +96,12 @@ def compute_metrics(con, run_id: str, as_of: datetime, cfg: ScoringConfig,
     out = []
     for niche_id, lids in sorted(tops.items()):
         rev = {lid: recent.get(lid, 0) for lid in lids}
-        total = sum(rev.values())
-        new_reviews = sum(n for lid, n in rev.items() if snap[lid][2] is not None and snap[lid][2] >= new_cutoff)
+        rate = {lid: favourites_per_month(snap[lid][1], snap[lid][2], as_of) for lid in lids}
+        fav_rate = sum(rate.values())
+        new_rate = sum(r for lid, r in rate.items() if snap[lid][2] is not None and snap[lid][2] >= new_cutoff)
         by_shop: Counter[int] = Counter()
-        for lid, n in rev.items():
-            by_shop[snap[lid][3]] += n
+        for lid, r in rate.items():
+            by_shop[snap[lid][3]] += r
         reviewed = sum(lifetime.get(lid, 0) for lid in lids)
         gap = None
         if status.get(niche_id) == "ok" and reviewed:
@@ -96,13 +112,15 @@ def compute_metrics(con, run_id: str, as_of: datetime, cfg: ScoringConfig,
         prices = [snap[lid][0] for lid in lids if snap[lid][0] is not None]
         out.append(NicheMetrics(
             niche_id=niche_id,
-            reviews_90d=total,
+            reviews_90d=sum(rev.values()),
             active_listings=sum(1 for n in rev.values() if n > 0),
             fav_delta=fav_delta,
-            entry_share=new_reviews / total if total else 0.0,
+            entry_share=_share(new_rate, fav_rate),
             gap_per_100=gap,
             median_price=median(prices) if prices else None,
             listing_count=int(listing_counts.get(niche_id) or 0),
-            top3_share=sum(sorted(by_shop.values(), reverse=True)[:3]) / total if total else 0.0,
+            top3_share=_share(sum(sorted(by_shop.values(), reverse=True)[:3]), fav_rate),
+            fav_rate=fav_rate,
+            engaged_listings=sum(1 for lid in lids if snap[lid][1] >= cfg.min_favourites),
         ))
     return out

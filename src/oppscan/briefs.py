@@ -36,7 +36,8 @@ def brief_payload(con, run_id: str, niche_id: str, as_of: datetime, cfg: Scoring
     name, description = con.execute(
         "SELECT name, description FROM niches WHERE niche_id = ? AND cluster_version = ?",
         [niche_id, db.cluster_version(con, run_id)]).fetchone()
-    keys = ["reviews_90d", "entry_share", "median_price", "listing_count", "top3_share", "confidence"]
+    keys = ["fav_rate", "engaged_listings", "reviews_90d", "entry_share", "median_price", "listing_count",
+            "top3_share", "confidence"]
     metrics = dict(zip(keys, con.execute(
         f"SELECT {', '.join(keys)} FROM niche_scores WHERE run_id = ? AND niche_id = ?",
         [run_id, niche_id]).fetchone()))

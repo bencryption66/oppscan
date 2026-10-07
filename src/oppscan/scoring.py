@@ -44,17 +44,19 @@ def percentile_ranks(values: Sequence[float]) -> list[float]:
     return out
 
 
-def _mean(a: list[float], b: list[float]) -> list[float]:
-    return [(x + y) / 2 for x, y in zip(a, b)]
+def _mean(*columns: list[float]) -> list[float]:
+    return [sum(values) / len(values) for values in zip(*columns)]
 
 
 def score_niches(metrics: list[NicheMetrics], cfg: ScoringConfig) -> list[NicheScore]:
     if not metrics:
         return []
     w = cfg.weights
-    demand = percentile_ranks([m.reviews_90d for m in metrics])
+    demand_parts = [percentile_ranks([m.fav_rate for m in metrics]),
+                    percentile_ranks([m.reviews_90d for m in metrics])]
     if all(m.fav_delta is not None for m in metrics):
-        demand = _mean(demand, percentile_ranks([m.fav_delta for m in metrics]))
+        demand_parts.append(percentile_ranks([m.fav_delta for m in metrics]))
+    demand = _mean(*demand_parts)
     entry = percentile_ranks([m.entry_share for m in metrics])
     crowding = _mean(percentile_ranks([m.listing_count for m in metrics]),
                      percentile_ranks([m.top3_share for m in metrics]))
@@ -71,8 +73,7 @@ def score_niches(metrics: list[NicheMetrics], cfg: ScoringConfig) -> list[NicheS
     scores = []
     for i, m in enumerate(metrics):
         dropped = demand[i] < cfg.demand_floor_pct
-        high = (m.reviews_90d >= cfg.high_conf_min_reviews
-                and m.active_listings >= cfg.high_conf_min_listings)
+        high = m.engaged_listings >= cfg.high_conf_min_listings
         scores.append(NicheScore(
             metrics=m, pct_demand=demand[i], pct_entry=entry[i], pct_gap=gap[i],
             pct_price=price[i], pct_crowding=crowding[i],
@@ -107,7 +108,7 @@ def sanity_check(scores: list[NicheScore], seed_niche: dict[str, str],
 SCORE_COLUMNS = ["run_id", "niche_id", "reviews_90d", "active_listings", "fav_delta", "entry_share",
                  "gap_per_100", "gap_missing", "median_price", "listing_count", "top3_share",
                  "pct_demand", "pct_entry", "pct_gap", "pct_price", "pct_crowding",
-                 "score", "confidence", "dropped", "dropped_reason", "rank"]
+                 "score", "confidence", "dropped", "dropped_reason", "rank", "fav_rate", "engaged_listings"]
 
 
 def save_scores(con, run_id: str, scores: list[NicheScore]) -> None:
@@ -120,5 +121,6 @@ def save_scores(con, run_id: str, scores: list[NicheScore]) -> None:
           s.metrics.fav_delta, s.metrics.entry_share, s.metrics.gap_per_100, s.gap_missing,
           s.metrics.median_price, s.metrics.listing_count, s.metrics.top3_share,
           s.pct_demand, s.pct_entry, s.pct_gap, s.pct_price, s.pct_crowding,
-          s.score, s.confidence, s.dropped, s.dropped_reason, s.rank) for s in scores],
+          s.score, s.confidence, s.dropped, s.dropped_reason, s.rank,
+          s.metrics.fav_rate, s.metrics.engaged_listings) for s in scores],
     )

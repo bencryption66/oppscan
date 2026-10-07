@@ -28,8 +28,8 @@ class Weights:
 class ScoringConfig:
     weights: Weights
     demand_floor_pct: float
-    high_conf_min_reviews: int
     high_conf_min_listings: int
+    min_favourites: int
     top_n_per_niche: int
     review_window_days: int
     new_listing_days: int
@@ -74,8 +74,8 @@ def load_scoring(path: Path) -> ScoringConfig:
     return ScoringConfig(
         weights=Weights(**{k: float(v) for k, v in d["weights"].items()}),
         demand_floor_pct=float(d["demand_floor_pct"]),
-        high_conf_min_reviews=int(hc["min_reviews_90d"]),
         high_conf_min_listings=int(hc["min_listings"]),
+        min_favourites=int(hc.get("min_favourites", 5)),
         top_n_per_niche=int(d["top_n_per_niche"]),
         review_window_days=int(d["review_window_days"]),
         new_listing_days=int(d["new_listing_days"]),

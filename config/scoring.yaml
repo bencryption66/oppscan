@@ -5,9 +5,9 @@ weights:
   price: 0.10
   crowding: 0.10        # subtracted
 demand_floor_pct: 0.25
-high_confidence:
-  min_reviews_90d: 30
+high_confidence:         # high when at least min_listings top listings have min_favourites+ favourites
   min_listings: 8
+  min_favourites: 5
 top_n_per_niche: 20
 review_window_days: 90
 new_listing_days: 365

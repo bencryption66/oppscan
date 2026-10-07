@@ -10,8 +10,8 @@ def make_cfg(**over) -> ScoringConfig:
     base = dict(
         weights=Weights(demand=0.35, entry=0.25, gap=0.20, price=0.10, crowding=0.10),
         demand_floor_pct=0.25,
-        high_conf_min_reviews=30,
         high_conf_min_listings=8,
+        min_favourites=5,
         top_n_per_niche=20,
         review_window_days=90,
         new_listing_days=365,

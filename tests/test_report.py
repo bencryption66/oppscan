@@ -10,16 +10,16 @@ from oppscan.report import explain, rank_change, render_report
 from oppscan.scoring import save_scores, score_niches
 
 AS_OF = datetime(2026, 10, 1)
-CFG = make_cfg(demand_floor_pct=0.0, high_conf_min_reviews=1, high_conf_min_listings=1)
+CFG = make_cfg(demand_floor_pct=0.0, high_conf_min_listings=1)
 
 
 def build(con):
     add_run(con, "r1", AS_OF)
     add_niche(con, "a", ["s1"], name="Budget templates")
     add_niche(con, "b", ["s2"], name="Notion templates")
-    add_listing(con, "r1", 1, seed="s1", rank=1, price=12.0, title="Best Budget")
+    add_listing(con, "r1", 1, seed="s1", rank=1, price=12.0, title="Best Budget", favs=30)
     add_listing(con, "r1", 2, seed="s1", rank=2, price=8.0, title="Other Budget")
-    add_listing(con, "r1", 3, seed="s2", rank=1, price=20.0, title="Notion Thing")
+    add_listing(con, "r1", 3, seed="s2", rank=1, price=20.0, title="Notion Thing", favs=2)
     for lid, niche in [(1, "a"), (2, "a"), (3, "b")]:
         assign(con, "r1", lid, niche)
     for i in range(3):
@@ -40,15 +40,22 @@ def test_rank_change():
 
 
 def test_explain_mentions_each_component():
-    row = {"reviews_90d": 40, "active_listings": 9, "fav_delta": None, "pct_demand": 0.8,
+    row = {"reviews_90d": 11, "active_listings": 9, "fav_delta": None, "pct_demand": 0.8,
+           "fav_rate": 411.6, "engaged_listings": 12,
            "entry_share": 0.3, "pct_entry": 0.6, "gap_missing": True, "gap_per_100": None, "pct_gap": 0.5,
            "median_price": 9.5, "pct_price": 0.4, "listing_count": 1200, "top3_share": 0.45,
            "pct_crowding": 0.7}
     lines = explain(row)
-    assert lines[0].startswith("Demand: 40 reviews in the last 90 days across 9 listings")
+    assert lines[0] == ("Demand: 412 favourites per month across the top listings and 11 reviews "
+                        "in the last 90 days (percentile 80%).")
+    assert lines[1] == "Entry: 30% of favourite momentum is on listings under a year old (percentile 60%)."
     assert "no complaint data" in lines[2]
     assert "$9.50" in lines[3]
-    assert "1,200 competing listings" in lines[4]
+    assert lines[4] == ("Crowding: 1,200 competing listings; the top 3 shops hold 45% of favourite "
+                        "momentum (percentile 70%, subtracted).")
+    lines = explain({**row, "fav_delta": 37})
+    assert lines[0] == ("Demand: 412 favourites per month across the top listings and 11 reviews "
+                        "in the last 90 days, 37 favourites gained since the last run (percentile 80%).")
 
 
 def test_competitors_ordered_by_recent_reviews(con):
@@ -66,6 +73,8 @@ def test_briefs_summary_and_render(con, tmp_path):
     brief_payload = next(p for t, p in llm.calls if t == "brief" and p["niche"]["name"] == "Budget templates")
     assert brief_payload["complaints"][0]["theme"] == "Confusing setup"
     assert brief_payload["metrics"]["price_min"] == 8.0
+    assert brief_payload["metrics"]["engaged_listings"] == 1
+    assert brief_payload["metrics"]["fav_rate"] > 0
 
     html_path, md_path = render_report(con, "r1", CFG, tmp_path)
     html = html_path.read_text()
@@ -75,6 +84,11 @@ def test_briefs_summary_and_render(con, tmp_path):
     assert "Draft brief" in html and "Confusing setup" in html
     assert "Fixture run with 2 ranked niches." in html
     assert "| 1 |" in md
+    # niche b's only listing has 2 favourites, so it is low confidence
+    expected = "Notion templates — low confidence: only 0 of the top listings have 5+ favourites"
+    assert expected in md and expected in html
+    for text in (html, md):
+        assert "favourites per month" in text and "5+ favourites" in text
 
 
 def test_competitor_with_unknown_price_renders_dash(con, tmp_path):

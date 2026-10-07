@@ -80,12 +80,13 @@ ul { margin:4px 0 8px; padding-left:20px; }
 <h2>Method</h2>
 <p>score = {{ weights.demand }}·Demand + {{ weights.entry }}·Entry + {{ weights.gap }}·Gap + {{ weights.price }}·Price − {{ weights.crowding }}·Crowding. Each component is a percentile across this run's niches, computed over the top {{ top_n }} search results per niche.</p>
 <ul>
-<li>Demand: reviews in the last {{ window }} days{% if blended %}, blended 50/50 with favourites gained since the previous run{% endif %}. Niches below the {{ (floor * 100)|int }}th demand percentile are dropped.</li>
-<li>Entry: share of recent reviews that went to listings under {{ new_days }} days old.</li>
+<li>Demand: the average of {% if blended %}three{% else %}two{% endif %} percentiles: favourite momentum (each listing's favourites divided by its age in months, at least 1, summed), reviews in the last {{ window }} days{% if blended %}, and favourites gained since the previous run{% endif %}. Niches below the {{ (floor * 100)|int }}th demand percentile are dropped.</li>
+<li>Entry: share of favourite momentum on listings under {{ new_days }} days old.</li>
 <li>Gap: complaints a better template would fix, per 100 reviews.</li>
 <li>Price: median listing price (USD).</li>
-<li>Crowding: total listings for the niche's keywords, and the top 3 shops' share of recent reviews.</li>
+<li>Crowding: total listings for the niche's keywords, and the top 3 shops' share of favourite momentum.</li>
+<li>Confidence: high when at least {{ min_listings }} of the top listings have {{ min_favourites }}+ favourites; high-confidence niches rank above low-confidence ones.</li>
 </ul>
-<p class="muted">These are proxies. Reviews are only a fraction of sales, so this ranks niches against each other; it does not estimate sales.</p>
+<p class="muted">These are proxies. Favourites and reviews are not sales, so this ranks niches against each other; it does not estimate sales.</p>
 </body>
 </html>

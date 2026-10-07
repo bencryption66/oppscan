@@ -11,7 +11,7 @@ from oppscan import db
 from oppscan.cli import main
 from oppscan.fake_etsy import fake_transport
 from oppscan.fake_llm import FakeLLM
-from oppscan.pipeline import Paths, run_pipeline
+from oppscan.pipeline import Paths, rescore_pipeline, run_pipeline
 
 REPO = Path(__file__).resolve().parents[1]
 T1 = datetime(2026, 10, 1, 8, 0, 0)
@@ -197,3 +197,107 @@ def test_cli_fixtures_ignores_daily_quota(tmp_path, capsys):
     out = capsys.readouterr().out
     assert code == 0, out
     assert "complete" in out
+
+
+def forbid_etsy(monkeypatch):
+    def fail(*args, **kwargs):
+        pytest.fail("rescore must not call Etsy")
+
+    monkeypatch.setattr("oppscan.pipeline.EtsyClient", fail, raising=False)
+    monkeypatch.setattr(httpx.Client, "send", fail)
+
+
+def test_rescore_rebuilds_a_complete_run_without_etsy_calls(tmp_path, monkeypatch):
+    paths = setup_config(tmp_path)
+    first = run(paths, T1)
+    assert first.status == "complete", first.reasons
+    con = duckdb.connect(str(paths.db))
+    columns = "status, status_reasons, suspect, started_at, api_calls"
+    original = con.execute(f"SELECT {columns} FROM runs").fetchone()
+    con.execute("UPDATE niche_scores SET score = -9 WHERE run_id = ?", [first.run_id])
+    con.execute("UPDATE runs SET status = 'partial', status_reasons = ['old reason'], suspect = NOT suspect "
+                "WHERE run_id = ?", [first.run_id])
+    con.close()
+    first.html.unlink()
+    first.md.unlink()
+
+    forbid_etsy(monkeypatch)
+    rescored = rescore_pipeline(paths, first.run_id, llm=FakeLLM())
+    assert rescored.run_id == first.run_id
+    assert rescored.status == "complete", rescored.reasons
+    assert rescored.html.exists() and rescored.md.exists()
+    assert "favourites per month" in rescored.html.read_text()
+    con = duckdb.connect(str(paths.db), read_only=True)
+    rescored_row = con.execute(f"SELECT {columns} FROM runs").fetchone()
+    min_score = con.execute("SELECT min(score) FROM niche_scores").fetchone()[0]
+    con.close()
+    assert rescored_row == original  # reasons and suspect recomputed; date and API calls kept
+    assert original[0] == "complete" and original[3] == T1
+    assert min_score > -9
+
+
+def test_rescore_keeps_etsy_failure_reason(tmp_path, monkeypatch):
+    paths = setup_config(tmp_path)
+    inner = fake_transport(T1)
+
+    def flaky_shops(request):
+        if request.url.path.startswith("/v3/application/shops/"):
+            return httpx.Response(404, text="gone")
+        return inner.handle_request(request)
+
+    first = run(paths, T1, transport=httpx.MockTransport(flaky_shops))
+    assert first.status == "partial"
+    forbid_etsy(monkeypatch)
+    rescored = rescore_pipeline(paths, first.run_id, llm=FakeLLM())
+    assert rescored.status == "partial"
+    assert rescored.reasons == first.reasons
+
+
+def test_rescore_rejects_paused_unknown_and_reseeded_runs(tmp_path):
+    paths = setup_config(tmp_path, quota=10)
+    paused = run(paths, T1)
+    assert paused.status == "paused"
+    with pytest.raises(ValueError, match=f"{paused.run_id}.*paused"):
+        rescore_pipeline(paths, paused.run_id, llm=FakeLLM())
+    with pytest.raises(ValueError, match="unknown run nope"):
+        rescore_pipeline(paths, "nope", llm=FakeLLM())
+
+    setup_config(tmp_path)
+    done = run(paths, T2)
+    (paths.config_dir / "seeds.yaml").write_text("seeds:\n  - something else\n")
+    with pytest.raises(ValueError, match="different seeds"):
+        rescore_pipeline(paths, done.run_id, llm=FakeLLM())
+
+
+def test_rescore_rejects_run_without_stored_responses(tmp_path):
+    paths = setup_config(tmp_path)
+    done = run(paths, T1)
+    con = duckdb.connect(str(paths.db))
+    con.execute("DELETE FROM raw_api")
+    con.close()
+    with pytest.raises(ValueError, match="no stored API responses"):
+        rescore_pipeline(paths, done.run_id, llm=FakeLLM())
+
+
+def test_rescore_checks_llm_credentials_first(tmp_path, monkeypatch):
+    paths = setup_config(tmp_path)
+    for name in list(os.environ):
+        if name.startswith("ANTHROPIC_"):
+            monkeypatch.delenv(name)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    with pytest.raises(ValueError, match="No Anthropic credentials"):
+        rescore_pipeline(paths, "nope")
+
+
+def test_cli_rescore(tmp_path, capsys, monkeypatch):
+    paths = setup_config(tmp_path)
+    dirs = ["--config-dir", str(paths.config_dir), "--data-dir", str(tmp_path / "data"),
+            "--reports-dir", str(tmp_path / "reports")]
+    assert main(["run", "--fixtures", *dirs]) == 0
+    run_id = capsys.readouterr().out.split()[1].rstrip(":")
+    forbid_etsy(monkeypatch)
+    assert main(["rescore", "--fixtures", run_id, *dirs]) == 0
+    out = capsys.readouterr().out
+    assert f"run {run_id}: complete" in out
+    assert main(["rescore", "--fixtures", "nope", *dirs]) == 1
+    assert "error: unknown run nope" in capsys.readouterr().err

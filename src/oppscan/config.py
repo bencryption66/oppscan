@@ -84,10 +84,10 @@ def load_scoring(path: Path) -> ScoringConfig:
     )
 
 
-def load_etsy(path: Path, api_key: str | None = None) -> EtsySettings:
+def load_etsy(path: Path, api_key: str | None = None, require_key: bool = True) -> EtsySettings:
     d = yaml.safe_load(Path(path).read_text())
     key = api_key if api_key is not None else os.environ.get("ETSY_API_KEY", "")
-    if not key:
+    if not key and require_key:
         raise ValueError("ETSY_API_KEY is not set")
     return EtsySettings(
         api_key=key,
